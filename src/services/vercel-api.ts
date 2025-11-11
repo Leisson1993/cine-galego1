@@ -1,4 +1,5 @@
-const VERCEL_API_BASE_URL = 'https://404a7d91f61faae34a99c0b58d9a05ba88e.vercel.app';
+const VERCEL_API_BASE_URL = 'https://apifilmes-wheat.vercel.app';
+const API_KEY = '83a1bf1e-bbb3-4873-ae5c-3c0113794ea1';
 
 export interface VercelMovie {
   id: string;
@@ -42,9 +43,9 @@ export const vercelApiService = {
   // Buscar todos os filmes
   async getAllMovies(): Promise<{ results: VercelMovie[]; total: number }> {
     try {
-      const url = `${VERCEL_API_BASE_URL}/all`;
+      const url = `${VERCEL_API_BASE_URL}/filmes?apiKey=${API_KEY}`;
       
-      console.log('🔍 Buscando todos os filmes da Vercel API');
+      console.log('🔍 Buscando todos os filmes da API');
       console.log('📡 URL:', url);
       
       const response = await fetch(url, {
@@ -66,13 +67,15 @@ export const vercelApiService = {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         console.error('❌ Resposta não é JSON:', contentType);
+        const text = await response.text();
+        console.error('Resposta recebida:', text);
         throw new Error('A API não retornou JSON válido');
       }
 
       const data = await response.json();
       
-      console.log('✅ Resposta da Vercel API:', data);
-      console.log(`📦 Total de filmes: ${Array.isArray(data) ? data.length : data.results?.length || 0}`);
+      console.log('✅ Resposta da API:', data);
+      console.log(`📦 Total de filmes: ${Array.isArray(data) ? data.length : data.results?.length || data.filmes?.length || 0}`);
 
       // Verificar o formato da resposta
       let movies: VercelMovie[] = [];
@@ -83,6 +86,8 @@ export const vercelApiService = {
         movies = data.results;
       } else if (data.movies && Array.isArray(data.movies)) {
         movies = data.movies;
+      } else if (data.filmes && Array.isArray(data.filmes)) {
+        movies = data.filmes;
       } else if (data.data && Array.isArray(data.data)) {
         movies = data.data;
       } else {
@@ -103,7 +108,7 @@ export const vercelApiService = {
         total: parsedMovies.length,
       };
     } catch (error) {
-      console.error('❌ Erro ao buscar filmes da Vercel API:', error);
+      console.error('❌ Erro ao buscar filmes da API:', error);
       
       // Fornecer mensagem de erro mais específica
       if (error instanceof TypeError && error.message.includes('fetch')) {
