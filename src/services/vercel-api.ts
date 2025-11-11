@@ -1,16 +1,15 @@
-// Usar proxy local em desenvolvimento, URL direta em produção
+// Usar serverless functions em produção
 const VERCEL_API_BASE_URL = import.meta.env.DEV 
   ? '/api/filmes'
-  : 'https://apifilmes-wheat.vercel.app/filmes';
+  : '/api/filmes';
 
 const VERCEL_SERIES_BASE_URL = import.meta.env.DEV 
   ? '/api/series'
-  : 'https://apifilmes-wheat.vercel.app/series';
+  : '/api/series';
 
 const VERCEL_ANIMES_BASE_URL = import.meta.env.DEV 
   ? '/api/animes'
-  : 'https://apifilmes-wheat.vercel.app/animes';
-
+  : '/api/animes';
 const API_KEY = '83a1bf1e-bbb3-4873-ae5c-3c0113794ea1';
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 
