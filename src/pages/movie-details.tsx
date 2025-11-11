@@ -6,6 +6,8 @@ import { ArrowLeft, Star, Clock, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tmdbService } from "@/services/tmdb";
 import { StreamingOptions } from "@/components/streaming-options";
+import { PeelinkPlayer } from "@/components/peelink-player";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -82,7 +84,10 @@ const MovieDetails = () => {
               />
             </Card>
 
-            {/* Opções de Streaming */}
+            {/* Player do Peelink */}
+            <PeelinkPlayer movieTitle={movie.title} movieYear={movieYear} />
+
+            {/* Opções de Streaming Legais */}
             <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
           </div>
 
