@@ -4,6 +4,7 @@ const VERCEL_API_BASE_URL = import.meta.env.DEV
   : 'https://apifilmes-wheat.vercel.app/filmes';
 
 const API_KEY = '83a1bf1e-bbb3-4873-ae5c-3c0113794ea1';
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 
 export interface VercelMovie {
   id: string;
@@ -21,6 +22,7 @@ export interface VercelMovie {
   quality?: string;
   language?: string;
   alternativeLinks?: string[];
+  tmdbId?: string;
   [key: string]: any;
 }
 
@@ -45,6 +47,41 @@ export const vercelCategories: VercelCategory[] = [
 ];
 
 export const vercelApiService = {
+  // Buscar ID do TMDB pelo título e ano
+  async getTMDBId(title: string, year?: string): Promise<string | null> {
+    if (!TMDB_API_KEY) {
+      console.warn('⚠️ TMDB API Key não configurada');
+      return null;
+    }
+
+    try {
+      const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(title)}${year ? `&year=${year}` : ''}`;
+      
+      console.log('🔍 Buscando TMDB ID para:', title, year);
+      
+      const response = await fetch(searchUrl);
+      
+      if (!response.ok) {
+        console.error('❌ Erro ao buscar TMDB ID:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const tmdbId = data.results[0].id.toString();
+        console.log('✅ TMDB ID encontrado:', tmdbId);
+        return tmdbId;
+      }
+      
+      console.warn('⚠️ Nenhum resultado encontrado no TMDB');
+      return null;
+    } catch (error) {
+      console.error('❌ Erro ao buscar TMDB ID:', error);
+      return null;
+    }
+  },
+
   // Buscar todos os filmes
   async getAllMovies(): Promise<{ results: VercelMovie[]; total: number }> {
     const url = `${VERCEL_API_BASE_URL}?apiKey=${API_KEY}`;
@@ -79,13 +116,13 @@ export const vercelApiService = {
         return { results: [], total: 0 };
       }
 
-      const parsedMovies = data.map((movie, index) => {
-        const parsed = this.parseMovie(movie);
+      const parsedMovies = await Promise.all(data.map(async (movie, index) => {
+        const parsed = await this.parseMovie(movie);
         if (index === 0) {
           console.log('📦 Primeiro filme parseado:', parsed);
         }
         return parsed;
-      });
+      }));
       
       console.log(`✅ ${parsedMovies.length} filmes parseados com sucesso!`);
       
@@ -192,21 +229,21 @@ export const vercelApiService = {
     }
   },
 
-  // Gerar múltiplos links alternativos de embed - APENAS SERVIDORES CONFIÁVEIS
-  generateEmbedLinks(movieSlug: string): string[] {
+  // Gerar múltiplos links alternativos de embed com TMDB ID
+  generateEmbedLinks(tmdbId: string): string[] {
     return [
-      `https://vidsrc.to/embed/movie/${movieSlug}`,
-      `https://vidsrc.me/embed/movie?tmdb=${movieSlug}`,
-      `https://www.2embed.to/embed/tmdb/movie?id=${movieSlug}`,
-      `https://multiembed.mov/directstream.php?video_id=${movieSlug}`,
-      `https://player.smashy.stream/movie/${movieSlug}`,
-      `https://embedder.net/e/movie?tmdb=${movieSlug}`,
-      `https://vidsrc.xyz/embed/movie/${movieSlug}`,
+      `https://vidsrc.xyz/embed/movie/${tmdbId}`,
+      `https://vidsrc.to/embed/movie/${tmdbId}`,
+      `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
+      `https://www.2embed.cc/embed/${tmdbId}`,
+      `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`,
+      `https://player.smashy.stream/movie/${tmdbId}`,
+      `https://vidsrc.pro/embed/movie/${tmdbId}`,
     ];
   },
 
-  // Parsear filme - AJUSTADO para o formato correto da API
-  parseMovie(data: any): VercelMovie {
+  // Parsear filme - AJUSTADO para buscar TMDB ID
+  async parseMovie(data: any): Promise<VercelMovie> {
     if (!data) return this.getDefaultMovie();
 
     // Usar o link como ID único
@@ -215,24 +252,31 @@ export const vercelApiService = {
     // Extrair nota do IMDb (ex: "IMDb 4.5" -> 4.5)
     const imdbRating = data.imdb ? parseFloat(data.imdb.replace('IMDb', '').trim()) : 7.0;
 
+    const title = data.titulo || 'Sem título';
+    const year = data.ano || '2024';
+
+    // Buscar TMDB ID
+    const tmdbId = await this.getTMDBId(title, year);
+    
     // Gerar múltiplos links de player
-    const alternativeLinks = this.generateEmbedLinks(data.link);
-    const primaryLink = alternativeLinks[0]; // Usar o primeiro como principal
+    const alternativeLinks = tmdbId ? this.generateEmbedLinks(tmdbId) : [];
+    const primaryLink = alternativeLinks.length > 0 ? alternativeLinks[0] : null;
 
     const parsed: VercelMovie = {
       id,
-      title: data.titulo || 'Sem título',
-      year: data.ano || '2024',
+      title,
+      year,
       genre: ['Ação'], // A API não retorna gênero, então usamos um padrão
       rating: imdbRating,
       duration: data.duracao || '0 Min',
       image: data.capa || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
       backdrop: data.capa, // Usar a mesma imagem como backdrop
-      description: `${data.titulo} (${data.ano})`, // A API não retorna descrição
+      description: `${title} (${year})`, // A API não retorna descrição
       director: 'N/A',
       cast: [],
       link: primaryLink,
       alternativeLinks: alternativeLinks,
+      tmdbId: tmdbId || undefined,
       quality: 'HD',
       language: 'DUB',
     };
@@ -305,6 +349,7 @@ export const vercelApiService = {
       cast: vercelMovie.cast,
       link: vercelMovie.link,
       alternativeLinks: vercelMovie.alternativeLinks,
+      tmdbId: vercelMovie.tmdbId,
       quality: vercelMovie.quality,
       language: vercelMovie.language,
     };
