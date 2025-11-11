@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { tmdbService } from "@/services/tmdb";
 import { StreamingOptions } from "@/components/streaming-options";
 import { PeelinkPlayer } from "@/components/peelink-player";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -74,7 +73,8 @@ const MovieDetails = () => {
       </div>
 
       <div className="container px-4 -mt-40 relative z-10 pb-12">
-        <div className="grid md:grid-cols-[300px,1fr] gap-8">
+        <div className="grid lg:grid-cols-[300px,1fr] gap-8">
+          {/* Coluna Esquerda - Poster */}
           <div className="space-y-6">
             <Card className="overflow-hidden">
               <img
@@ -84,14 +84,15 @@ const MovieDetails = () => {
               />
             </Card>
 
-            {/* Player do Peelink */}
-            <PeelinkPlayer movieTitle={movie.title} movieYear={movieYear} />
-
-            {/* Opções de Streaming Legais */}
-            <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
+            {/* Opções de Streaming Legais - Apenas em desktop */}
+            <div className="hidden lg:block">
+              <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
+            </div>
           </div>
 
+          {/* Coluna Direita - Informações e Player */}
           <div className="space-y-6">
+            {/* Informações do Filme */}
             <div>
               <h1 className="text-4xl font-bold mb-2">{movie.title}</h1>
               {movie.tagline && (
@@ -116,6 +117,7 @@ const MovieDetails = () => {
               </div>
             </div>
 
+            {/* Gêneros */}
             <div className="flex flex-wrap gap-2">
               {movie.genres.map((genre) => (
                 <span
@@ -127,6 +129,10 @@ const MovieDetails = () => {
               ))}
             </div>
 
+            {/* Player do Peelink - DESTAQUE */}
+            <PeelinkPlayer movieTitle={movie.title} movieYear={movieYear} />
+
+            {/* Sinopse e Detalhes */}
             <Card>
               <CardContent className="p-6 space-y-4">
                 <div>
@@ -171,6 +177,11 @@ const MovieDetails = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Opções de Streaming - Mobile */}
+            <div className="lg:hidden">
+              <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
+            </div>
           </div>
         </div>
       </div>
