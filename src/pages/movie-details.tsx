@@ -15,45 +15,94 @@ const MovieDetails = () => {
   const [showPlayer, setShowPlayer] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
-  // Bloquear popups e novas abas
+  // Bloquear popups e novas abas de forma mais agressiva
   useEffect(() => {
+    // Meta tags de segurança
     const metaReferrer = document.createElement('meta');
     metaReferrer.name = 'referrer';
     metaReferrer.content = 'no-referrer';
     document.head.appendChild(metaReferrer);
 
-    // Bloquear window.open globalmente
+    // Bloquear window.open completamente
     const originalOpen = window.open;
+    const originalCreateElement = document.createElement;
+    
     window.open = function(...args) {
-      console.log('Popup bloqueado!', args);
+      console.log('🚫 Popup bloqueado!', args);
       return null;
     };
 
-    // Interceptar cliques em links que tentam abrir novas abas
+    // Bloquear criação de elementos <a> com target="_blank"
+    document.createElement = function(tagName: string) {
+      const element = originalCreateElement.call(document, tagName);
+      if (tagName.toLowerCase() === 'a') {
+        const anchor = element as HTMLAnchorElement;
+        Object.defineProperty(anchor, 'target', {
+          set: function(value) {
+            if (value === '_blank') {
+              console.log('🚫 Link com target="_blank" bloqueado');
+              return;
+            }
+          },
+          get: function() {
+            return '_self';
+          }
+        });
+      }
+      return element;
+    };
+
+    // Interceptar todos os cliques
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      
+      // Bloquear links com target="_blank"
       if (target.tagName === 'A') {
         const link = target as HTMLAnchorElement;
-        if (link.target === '_blank') {
+        if (link.target === '_blank' || link.href.includes('http')) {
           e.preventDefault();
           e.stopPropagation();
-          console.log('Link bloqueado:', link.href);
+          e.stopImmediatePropagation();
+          console.log('🚫 Link bloqueado:', link.href);
+          return false;
         }
       }
     };
 
+    // Bloquear eventos de abertura de janela
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!hasInteracted) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
     document.addEventListener('click', handleClick, true);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Bloquear popups a cada 100ms
+    const popupBlocker = setInterval(() => {
+      window.open = function() {
+        console.log('🚫 Popup bloqueado (interval)');
+        return null;
+      };
+    }, 100);
 
     return () => {
       document.head.removeChild(metaReferrer);
       window.open = originalOpen;
+      document.createElement = originalCreateElement;
       document.removeEventListener('click', handleClick, true);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      clearInterval(popupBlocker);
     };
-  }, []);
+  }, [hasInteracted]);
 
   // Monitorar iframe e bloquear popups dele
   useEffect(() => {
@@ -62,17 +111,26 @@ const MovieDetails = () => {
       
       const handleLoad = () => {
         try {
-          // Tentar bloquear window.open dentro do iframe
           if (iframe.contentWindow) {
             const iframeWindow = iframe.contentWindow as any;
+            
+            // Bloquear window.open do iframe
             iframeWindow.open = function() {
-              console.log('Popup do iframe bloqueado!');
+              console.log('🚫 Popup do iframe bloqueado!');
               return null;
             };
+
+            // Bloquear eventos de clique no iframe
+            iframeWindow.addEventListener('click', (e: any) => {
+              if (e.target.tagName === 'A' && e.target.target === '_blank') {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🚫 Link do iframe bloqueado');
+              }
+            }, true);
           }
         } catch (e) {
-          // CORS pode impedir acesso ao contentWindow
-          console.log('Não foi possível acessar contentWindow do iframe');
+          console.log('⚠️ CORS impediu acesso ao iframe');
         }
       };
 
@@ -89,6 +147,7 @@ const MovieDetails = () => {
       e.preventDefault();
       e.stopPropagation();
     }
+    setHasInteracted(true);
     setPlayerKey(prev => prev + 1);
   };
 
@@ -97,6 +156,7 @@ const MovieDetails = () => {
       e.preventDefault();
       e.stopPropagation();
     }
+    setHasInteracted(true);
     setCurrentServerIndex(index);
     setShowPlayer(false);
     setTimeout(() => {
@@ -110,6 +170,7 @@ const MovieDetails = () => {
       e.preventDefault();
       e.stopPropagation();
     }
+    setHasInteracted(true);
     setShowPlayer(false);
   };
 
@@ -118,6 +179,7 @@ const MovieDetails = () => {
       e.preventDefault();
       e.stopPropagation();
     }
+    setHasInteracted(true);
     setShowPlayer(true);
   };
 
@@ -343,7 +405,7 @@ const MovieDetails = () => {
                       </div>
                       <Alert>
                         <AlertDescription className="text-xs">
-                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor. Use um bloqueador de popups no navegador para melhor experiência.
+                          💡 <strong>Dica:</strong> Se aparecer um popup, feche-o e clique novamente. O vídeo vai carregar. Recomendamos usar um bloqueador de popups no navegador.
                         </AlertDescription>
                       </Alert>
                     </>
