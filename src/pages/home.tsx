@@ -49,10 +49,27 @@ const Home = () => {
 
   // Verificar se a API key está configurada
   useEffect(() => {
-    if (!import.meta.env.VITE_TMDB_API_KEY) {
-      console.error('TMDB API Key não configurada! Configure VITE_TMDB_API_KEY no arquivo .env');
+    const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+    console.log('TMDB API Key configurada:', apiKey ? 'Sim' : 'Não');
+    console.log('TMDB API Key (primeiros 10 caracteres):', apiKey ? apiKey.substring(0, 10) + '...' : 'Não configurada');
+    
+    if (!apiKey) {
+      console.error('❌ TMDB API Key não configurada! Configure VITE_TMDB_API_KEY no arquivo .env');
     }
   }, []);
+
+  // Log de debug
+  useEffect(() => {
+    console.log('Estado atual:', {
+      searchQuery,
+      selectedCategory,
+      selectedGenreId,
+      genresCount: genres.length,
+      moviesCount: movies.length,
+      isLoading,
+      hasError: !!error
+    });
+  }, [searchQuery, selectedCategory, selectedGenreId, genres.length, movies.length, isLoading, error]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -69,7 +86,18 @@ const Home = () => {
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
+              <strong>⚠️ API Key não configurada!</strong>
+              <br />
               Configure sua chave de API do TMDB no arquivo .env como VITE_TMDB_API_KEY
+              <br />
+              <a 
+                href="https://www.themoviedb.org/settings/api" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="underline hover:text-white"
+              >
+                Clique aqui para obter sua chave gratuita
+              </a>
             </AlertDescription>
           </Alert>
         )}
@@ -78,7 +106,13 @@ const Home = () => {
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Erro ao carregar filmes. Verifique sua conexão e tente novamente.
+              <strong>Erro ao carregar filmes:</strong>
+              <br />
+              {error.message || 'Erro desconhecido'}
+              <br />
+              <span className="text-sm">
+                Verifique sua conexão com a internet e se a API key está correta.
+              </span>
             </AlertDescription>
           </Alert>
         )}
@@ -98,9 +132,20 @@ const Home = () => {
           </>
         ) : movies.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-xl text-muted-foreground">
+            <AlertCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-xl text-muted-foreground mb-2">
               Nenhum filme encontrado
             </p>
+            {searchQuery && (
+              <p className="text-sm text-muted-foreground">
+                Tente buscar por outro termo
+              </p>
+            )}
+            {!import.meta.env.VITE_TMDB_API_KEY && (
+              <p className="text-sm text-destructive mt-4">
+                Configure a API key do TMDB para ver os filmes
+              </p>
+            )}
           </div>
         ) : (
           <>
