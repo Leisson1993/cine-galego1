@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Film, Maximize2, ExternalLink, RefreshCw } from "lucide-react";
+import { Play, Film, Maximize2, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
 import { peelinkService } from "@/services/peelink";
+import { peelinkScraperService, PlayerLink } from "@/services/peelink-scraper";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface PeelinkPlayerProps {
   movieTitle: string;
@@ -13,59 +13,48 @@ interface PeelinkPlayerProps {
 }
 
 export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => {
-  const [embedUrls, setEmbedUrls] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [playerLinks, setPlayerLinks] = useState<PlayerLink[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedLink, setSelectedLink] = useState<PlayerLink | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
-  const [currentServerIndex, setCurrentServerIndex] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadEmbedUrls = async () => {
-      setLoading(true);
+  const loadPlayerLinks = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Extrair links de players da página do Peelink
+      const links = await peelinkScraperService.extractPlayerLinksFromPage(movieTitle, movieYear);
       
-      // Gerar URLs de embed
-      const urls = peelinkService.generateEmbedUrls(movieTitle, movieYear);
-      setEmbedUrls(urls);
-
-      // Definir primeira URL como padrão
-      if (urls.length > 0) {
-        setSelectedUrl(urls[0]);
+      if (links.length > 0) {
+        setPlayerLinks(links);
+        setSelectedLink(links[0]);
+      } else {
+        setError('Nenhum player encontrado. Tente abrir a página completa.');
       }
-
+    } catch (err) {
+      console.error('Erro ao carregar players:', err);
+      setError('Erro ao carregar players. Verifique sua conexão.');
+    } finally {
       setLoading(false);
-    };
-
-    loadEmbedUrls();
-  }, [movieTitle, movieYear]);
-
-  const languages = peelinkService.getLanguageOptions();
-
-  const handleServerChange = (index: number) => {
-    setCurrentServerIndex(index);
-    setSelectedUrl(embedUrls[index]);
-    if (showPlayer) {
-      setShowPlayer(false);
-      setTimeout(() => setShowPlayer(true), 100);
     }
   };
+
+  const languages = peelinkService.getLanguageOptions();
 
   const handleRefresh = () => {
     setShowPlayer(false);
     setTimeout(() => setShowPlayer(true), 100);
   };
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Film className="w-5 h-5" />
-            Carregando player...
-          </CardTitle>
-        </CardHeader>
-      </Card>
-    );
-  }
+  const handleServerChange = (link: PlayerLink) => {
+    setSelectedLink(link);
+    if (showPlayer) {
+      setShowPlayer(false);
+      setTimeout(() => setShowPlayer(true), 100);
+    }
+  };
 
   return (
     <Card>
@@ -90,13 +79,40 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
           </div>
         </div>
 
+        {/* Botão para Carregar Players */}
+        {!loading && playerLinks.length === 0 && !error && (
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={loadPlayerLinks}
+          >
+            <Play className="w-5 h-5 mr-2" />
+            Carregar Players
+          </Button>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="ml-2">Buscando players disponíveis...</span>
+          </div>
+        )}
+
+        {/* Erro */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Player Embutido */}
-        {showPlayer && selectedUrl ? (
+        {showPlayer && selectedLink ? (
           <div className="space-y-4">
             <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
               <iframe
-                key={selectedUrl}
-                src={selectedUrl}
+                key={selectedLink.url}
+                src={selectedLink.url}
                 className="absolute top-0 left-0 w-full h-full"
                 allowFullScreen
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -104,6 +120,14 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
                 sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                 title="Peelink Player"
               />
+            </div>
+            
+            {/* Info do Servidor */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Servidor: <strong>{selectedLink.server}</strong>
+              </span>
+              <Badge variant="secondary">{selectedLink.quality}</Badge>
             </div>
             
             {/* Botões de Controle */}
@@ -120,7 +144,7 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(selectedUrl, '_blank')}
+                onClick={() => window.open(selectedLink.url, '_blank')}
                 className="flex-1"
               >
                 <Maximize2 className="w-4 h-4 mr-2" />
@@ -136,7 +160,7 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
               </Button>
             </div>
           </div>
-        ) : (
+        ) : playerLinks.length > 0 && !showPlayer ? (
           <Button
             className="w-full"
             size="lg"
@@ -145,24 +169,24 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
             <Play className="w-5 h-5 mr-2" />
             Assistir Agora
           </Button>
-        )}
+        ) : null}
 
         {/* Servidores Alternativos */}
-        {embedUrls.length > 1 && (
+        {playerLinks.length > 1 && (
           <div>
             <h4 className="font-semibold mb-2 text-sm text-muted-foreground">
-              Servidores Alternativos
+              Servidores Disponíveis ({playerLinks.length})
             </h4>
-            <div className="grid grid-cols-3 gap-2">
-              {embedUrls.slice(0, 6).map((url, index) => (
+            <div className="grid grid-cols-2 gap-2">
+              {playerLinks.map((link, index) => (
                 <Button
                   key={index}
-                  variant={currentServerIndex === index ? "default" : "outline"}
+                  variant={selectedLink?.url === link.url ? "default" : "outline"}
                   size="sm"
-                  onClick={() => handleServerChange(index)}
+                  onClick={() => handleServerChange(link)}
                   className="w-full"
                 >
-                  Servidor {index + 1}
+                  {link.server}
                 </Button>
               ))}
             </div>
@@ -185,8 +209,7 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
         {/* Informações */}
         <Alert>
           <AlertDescription className="text-xs">
-            <strong>Dica:</strong> Se o player não carregar, tente outro servidor ou abra a página completa do Peelink.
-            Alguns servidores podem ter proteção contra embed.
+            <strong>Como funciona:</strong> Clique em "Carregar Players" para buscar os links diretos dos servidores de streaming disponíveis no Peelink.
           </AlertDescription>
         </Alert>
       </CardContent>
