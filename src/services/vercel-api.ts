@@ -42,11 +42,17 @@ export const vercelCategories: VercelCategory[] = [
 export const vercelApiService = {
   // Buscar todos os filmes
   async getAllMovies(): Promise<{ results: VercelMovie[]; total: number }> {
+    const url = `${VERCEL_API_BASE_URL}/filmes?apiKey=${API_KEY}`;
+    
+    console.log('🔍 Iniciando busca de filmes...');
+    console.log('📡 URL completa:', url);
+    console.log('🔑 API Key:', API_KEY);
+    
     try {
-      const url = `${VERCEL_API_BASE_URL}/filmes?apiKey=${API_KEY}`;
+      console.log('⏳ Fazendo requisição fetch...');
       
-      console.log('🔍 Buscando todos os filmes da API');
-      console.log('📡 URL:', url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
       
       const response = await fetch(url, {
         method: 'GET',
@@ -54,9 +60,15 @@ export const vercelApiService = {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        mode: 'cors',
-        cache: 'no-cache',
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
+      
+      console.log('✅ Resposta recebida!');
+      console.log('📊 Status:', response.status);
+      console.log('📊 Status Text:', response.statusText);
+      console.log('📊 Headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Erro desconhecido');
@@ -65,54 +77,85 @@ export const vercelApiService = {
       }
 
       const contentType = response.headers.get('content-type');
+      console.log('📄 Content-Type:', contentType);
+      
       if (!contentType || !contentType.includes('application/json')) {
         console.error('❌ Resposta não é JSON:', contentType);
         const text = await response.text();
-        console.error('Resposta recebida:', text);
+        console.error('📄 Resposta recebida:', text.substring(0, 500));
         throw new Error('A API não retornou JSON válido');
       }
 
+      console.log('⏳ Parseando JSON...');
       const data = await response.json();
       
-      console.log('✅ Resposta da API:', data);
-      console.log(`📦 Total de filmes: ${Array.isArray(data) ? data.length : data.results?.length || data.filmes?.length || 0}`);
+      console.log('✅ JSON parseado com sucesso!');
+      console.log('📦 Tipo de dados:', typeof data);
+      console.log('📦 É array?', Array.isArray(data));
+      console.log('📦 Chaves do objeto:', Object.keys(data));
+      console.log('📦 Primeiros dados:', JSON.stringify(data).substring(0, 500));
 
       // Verificar o formato da resposta
       let movies: VercelMovie[] = [];
       
       if (Array.isArray(data)) {
+        console.log('✅ Dados são um array direto');
         movies = data;
       } else if (data.results && Array.isArray(data.results)) {
+        console.log('✅ Dados estão em data.results');
         movies = data.results;
       } else if (data.movies && Array.isArray(data.movies)) {
+        console.log('✅ Dados estão em data.movies');
         movies = data.movies;
       } else if (data.filmes && Array.isArray(data.filmes)) {
+        console.log('✅ Dados estão em data.filmes');
         movies = data.filmes;
       } else if (data.data && Array.isArray(data.data)) {
+        console.log('✅ Dados estão em data.data');
         movies = data.data;
       } else {
-        console.warn('⚠️ Formato de resposta desconhecido:', data);
+        console.error('❌ Formato de resposta desconhecido');
+        console.error('📦 Estrutura completa:', JSON.stringify(data, null, 2));
         throw new Error('Formato de dados não reconhecido');
       }
 
+      console.log(`📦 Total de filmes encontrados: ${movies.length}`);
+
       if (movies.length === 0) {
         console.warn('⚠️ Nenhum filme encontrado na resposta');
+        return { results: [], total: 0 };
       }
 
-      const parsedMovies = movies.map(movie => this.parseMovie(movie));
+      console.log('📦 Primeiro filme (raw):', JSON.stringify(movies[0], null, 2));
+
+      console.log('⏳ Parseando filmes...');
+      const parsedMovies = movies.map((movie, index) => {
+        const parsed = this.parseMovie(movie);
+        if (index === 0) {
+          console.log('📦 Primeiro filme (parseado):', JSON.stringify(parsed, null, 2));
+        }
+        return parsed;
+      });
       
-      console.log(`✅ ${parsedMovies.length} filmes parseados com sucesso`);
+      console.log(`✅ ${parsedMovies.length} filmes parseados com sucesso!`);
       
       return {
         results: parsedMovies,
         total: parsedMovies.length,
       };
     } catch (error) {
-      console.error('❌ Erro ao buscar filmes da API:', error);
+      console.error('❌ ERRO COMPLETO:', error);
+      console.error('❌ Nome do erro:', error.name);
+      console.error('❌ Mensagem:', error.message);
+      console.error('❌ Stack:', error.stack);
       
       // Fornecer mensagem de erro mais específica
+      if (error.name === 'AbortError') {
+        throw new Error('A requisição demorou muito tempo. Tente novamente.');
+      }
+      
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('Não foi possível conectar à API. Verifique sua conexão com a internet ou tente novamente mais tarde.');
+        throw new Error('Não foi possível conectar à API. Possível problema de CORS ou rede.');
       }
       
       throw error;
@@ -122,20 +165,17 @@ export const vercelApiService = {
   // Buscar filmes por categoria
   async getMoviesByCategory(categorySlug: string): Promise<{ results: VercelMovie[]; total: number }> {
     try {
-      // Primeiro buscar todos os filmes
       const allMovies = await this.getAllMovies();
       
       if (categorySlug === 'all' || !categorySlug) {
         return allMovies;
       }
 
-      // Filtrar por categoria
       const filtered = allMovies.results.filter(movie => {
         if (!movie.genre || !Array.isArray(movie.genre)) return false;
         
         const genreLower = movie.genre.map(g => g.toLowerCase());
         
-        // Mapear slugs para nomes de gêneros
         const categoryMap: { [key: string]: string[] } = {
           'action': ['ação', 'action'],
           'animation': ['animação', 'animation'],
@@ -171,7 +211,6 @@ export const vercelApiService = {
   // Buscar filme por ID
   async getMovieById(movieId: string): Promise<VercelMovie | null> {
     try {
-      // Tentar buscar na lista completa primeiro (mais confiável)
       console.log('🔍 Buscando filme ID na lista completa:', movieId);
       const allMovies = await this.getAllMovies();
       const movie = allMovies.results.find(m => m.id === movieId);
@@ -238,7 +277,6 @@ export const vercelApiService = {
     };
   },
 
-  // Parsear gêneros
   parseGenres(genres: any): string[] {
     if (Array.isArray(genres)) {
       return genres.map(g => {
@@ -254,13 +292,11 @@ export const vercelApiService = {
     return ['Ação'];
   },
 
-  // Parsear nota
   parseRating(rating: any): number {
     const parsed = parseFloat(rating);
     return isNaN(parsed) ? 7.5 : Math.min(10, Math.max(0, parsed));
   },
 
-  // Parsear elenco
   parseCast(cast: any): string[] {
     if (Array.isArray(cast)) {
       return cast.map(c => {
@@ -276,7 +312,6 @@ export const vercelApiService = {
     return [];
   },
 
-  // Filme padrão
   getDefaultMovie(): VercelMovie {
     return {
       id: 'unknown',
@@ -292,7 +327,6 @@ export const vercelApiService = {
     };
   },
 
-  // Converter para formato compatível
   convertToLocalMovie(vercelMovie: VercelMovie): any {
     return {
       id: vercelMovie.id,
