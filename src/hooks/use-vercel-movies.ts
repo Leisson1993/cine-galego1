@@ -70,14 +70,14 @@ export const useVercelMovies = () => {
     });
   };
 
-  // Buscar detalhes do filme
+  // Buscar detalhes do filme/série/anime
   const useMovieDetails = (movieId: string) => {
     return useQuery({
       queryKey: ['vercel-movie', 'details', movieId],
       queryFn: async () => {
-        console.log('🔍 Buscando filme ID:', movieId);
+        console.log('🔍 Buscando conteúdo ID:', movieId);
         
-        // Primeiro, tentar encontrar o filme no cache
+        // Primeiro, tentar encontrar no cache
         const allMoviesCache = queryClient.getQueriesData({ queryKey: ['vercel-movies'] });
         const allSeriesCache = queryClient.getQueriesData({ queryKey: ['vercel-series'] });
         const allAnimesCache = queryClient.getQueriesData({ queryKey: ['vercel-animes'] });
@@ -90,21 +90,37 @@ export const useVercelMovies = () => {
             const foundMovie = cachedData.results.find((m: any) => m.id === movieId);
             
             if (foundMovie) {
-              console.log('✅ Filme encontrado no cache:', foundMovie);
+              console.log('✅ Conteúdo encontrado no cache:', foundMovie);
+              
+              // Se for série ou anime, buscar temporadas
+              if (foundMovie.type === 'series' || foundMovie.type === 'anime') {
+                console.log('📺 Buscando temporadas para:', foundMovie.title);
+                const seasons = await vercelApiService.getSeasons(
+                  foundMovie.tmdbId || movieId, 
+                  foundMovie.type
+                );
+                
+                foundMovie.seasons = seasons;
+                foundMovie.totalSeasons = seasons.length;
+                foundMovie.totalEpisodes = seasons.reduce((acc: number, s: any) => acc + s.episodes.length, 0);
+                
+                console.log(`✅ ${seasons.length} temporadas carregadas`);
+              }
+              
               return foundMovie;
             }
           }
         }
         
         // Se não encontrou no cache, buscar na API
-        console.log('⚠️ Filme não encontrado no cache, buscando na API...');
+        console.log('⚠️ Conteúdo não encontrado no cache, buscando na API...');
         const apiResult = await vercelApiService.getMovieById(movieId);
         
         if (apiResult) {
           return vercelApiService.convertToLocalMovie(apiResult);
         }
         
-        console.error('❌ Filme não encontrado');
+        console.error('❌ Conteúdo não encontrado');
         return null;
       },
       enabled: !!movieId,
