@@ -1,4 +1,8 @@
-const VERCEL_API_BASE_URL = 'https://apifilmes-wheat.vercel.app';
+// Usar proxy local em desenvolvimento, URL direta em produção
+const VERCEL_API_BASE_URL = import.meta.env.DEV 
+  ? '/api/filmes'
+  : 'https://apifilmes-wheat.vercel.app/filmes';
+
 const API_KEY = '83a1bf1e-bbb3-4873-ae5c-3c0113794ea1';
 
 export interface VercelMovie {
@@ -42,33 +46,23 @@ export const vercelCategories: VercelCategory[] = [
 export const vercelApiService = {
   // Buscar todos os filmes
   async getAllMovies(): Promise<{ results: VercelMovie[]; total: number }> {
-    const url = `${VERCEL_API_BASE_URL}/filmes?apiKey=${API_KEY}`;
+    const url = `${VERCEL_API_BASE_URL}?apiKey=${API_KEY}`;
     
-    console.log('🔍 Iniciando busca de filmes...');
-    console.log('📡 URL completa:', url);
-    console.log('🔑 API Key:', API_KEY);
+    console.log('🔍 Buscando filmes via proxy...');
+    console.log('📡 URL:', url);
+    console.log('🔧 Modo:', import.meta.env.DEV ? 'Desenvolvimento (proxy)' : 'Produção (direto)');
     
     try {
-      console.log('⏳ Fazendo requisição fetch...');
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
-      
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
       
       console.log('✅ Resposta recebida!');
       console.log('📊 Status:', response.status);
-      console.log('📊 Status Text:', response.statusText);
-      console.log('📊 Headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Erro desconhecido');
@@ -77,85 +71,56 @@ export const vercelApiService = {
       }
 
       const contentType = response.headers.get('content-type');
-      console.log('📄 Content-Type:', contentType);
-      
       if (!contentType || !contentType.includes('application/json')) {
         console.error('❌ Resposta não é JSON:', contentType);
         const text = await response.text();
-        console.error('📄 Resposta recebida:', text.substring(0, 500));
+        console.error('📄 Resposta:', text.substring(0, 500));
         throw new Error('A API não retornou JSON válido');
       }
 
-      console.log('⏳ Parseando JSON...');
       const data = await response.json();
       
-      console.log('✅ JSON parseado com sucesso!');
-      console.log('📦 Tipo de dados:', typeof data);
-      console.log('📦 É array?', Array.isArray(data));
-      console.log('📦 Chaves do objeto:', Object.keys(data));
-      console.log('📦 Primeiros dados:', JSON.stringify(data).substring(0, 500));
+      console.log('✅ JSON parseado!');
+      console.log('📦 Estrutura:', Object.keys(data));
 
       // Verificar o formato da resposta
       let movies: VercelMovie[] = [];
       
       if (Array.isArray(data)) {
-        console.log('✅ Dados são um array direto');
         movies = data;
       } else if (data.results && Array.isArray(data.results)) {
-        console.log('✅ Dados estão em data.results');
         movies = data.results;
       } else if (data.movies && Array.isArray(data.movies)) {
-        console.log('✅ Dados estão em data.movies');
         movies = data.movies;
       } else if (data.filmes && Array.isArray(data.filmes)) {
-        console.log('✅ Dados estão em data.filmes');
         movies = data.filmes;
       } else if (data.data && Array.isArray(data.data)) {
-        console.log('✅ Dados estão em data.data');
         movies = data.data;
       } else {
-        console.error('❌ Formato de resposta desconhecido');
-        console.error('📦 Estrutura completa:', JSON.stringify(data, null, 2));
+        console.error('❌ Formato desconhecido:', data);
         throw new Error('Formato de dados não reconhecido');
       }
 
-      console.log(`📦 Total de filmes encontrados: ${movies.length}`);
+      console.log(`📦 Total de filmes: ${movies.length}`);
 
       if (movies.length === 0) {
-        console.warn('⚠️ Nenhum filme encontrado na resposta');
+        console.warn('⚠️ Nenhum filme encontrado');
         return { results: [], total: 0 };
       }
 
-      console.log('📦 Primeiro filme (raw):', JSON.stringify(movies[0], null, 2));
-
-      console.log('⏳ Parseando filmes...');
-      const parsedMovies = movies.map((movie, index) => {
-        const parsed = this.parseMovie(movie);
-        if (index === 0) {
-          console.log('📦 Primeiro filme (parseado):', JSON.stringify(parsed, null, 2));
-        }
-        return parsed;
-      });
+      const parsedMovies = movies.map(movie => this.parseMovie(movie));
       
-      console.log(`✅ ${parsedMovies.length} filmes parseados com sucesso!`);
+      console.log(`✅ ${parsedMovies.length} filmes parseados!`);
       
       return {
         results: parsedMovies,
         total: parsedMovies.length,
       };
     } catch (error) {
-      console.error('❌ ERRO COMPLETO:', error);
-      console.error('❌ Nome do erro:', error.name);
-      console.error('❌ Mensagem:', error.message);
-      console.error('❌ Stack:', error.stack);
-      
-      // Fornecer mensagem de erro mais específica
-      if (error.name === 'AbortError') {
-        throw new Error('A requisição demorou muito tempo. Tente novamente.');
-      }
+      console.error('❌ ERRO:', error);
       
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('Não foi possível conectar à API. Possível problema de CORS ou rede.');
+        throw new Error('Não foi possível conectar à API. Verifique sua conexão.');
       }
       
       throw error;
@@ -196,14 +161,14 @@ export const vercelApiService = {
         );
       });
 
-      console.log(`🔍 Filmes filtrados por categoria "${categorySlug}": ${filtered.length}`);
+      console.log(`🔍 Categoria "${categorySlug}": ${filtered.length} filmes`);
 
       return {
         results: filtered,
         total: filtered.length,
       };
     } catch (error) {
-      console.error('❌ Erro ao buscar filmes por categoria:', error);
+      console.error('❌ Erro ao buscar por categoria:', error);
       throw error;
     }
   },
@@ -211,19 +176,19 @@ export const vercelApiService = {
   // Buscar filme por ID
   async getMovieById(movieId: string): Promise<VercelMovie | null> {
     try {
-      console.log('🔍 Buscando filme ID na lista completa:', movieId);
+      console.log('🔍 Buscando filme ID:', movieId);
       const allMovies = await this.getAllMovies();
       const movie = allMovies.results.find(m => m.id === movieId);
       
       if (movie) {
-        console.log('✅ Filme encontrado na lista:', movie.title);
+        console.log('✅ Filme encontrado:', movie.title);
         return movie;
       }
       
-      console.warn('⚠️ Filme não encontrado na lista');
+      console.warn('⚠️ Filme não encontrado');
       return null;
     } catch (error) {
-      console.error('❌ Erro ao buscar detalhes do filme:', error);
+      console.error('❌ Erro ao buscar filme:', error);
       return null;
     }
   },
@@ -231,7 +196,7 @@ export const vercelApiService = {
   // Buscar filmes (pesquisa)
   async searchMovies(query: string): Promise<{ results: VercelMovie[]; total: number }> {
     try {
-      console.log('🔍 Buscando filmes localmente:', query);
+      console.log('🔍 Buscando:', query);
       const allMovies = await this.getAllMovies();
       
       const queryLower = query.toLowerCase();
@@ -243,19 +208,19 @@ export const vercelApiService = {
         return titleMatch || descriptionMatch || genreMatch;
       });
       
-      console.log(`✅ ${filtered.length} filmes encontrados para "${query}"`);
+      console.log(`✅ ${filtered.length} resultados para "${query}"`);
       
       return {
         results: filtered,
         total: filtered.length,
       };
     } catch (error) {
-      console.error('❌ Erro ao buscar filmes:', error);
+      console.error('❌ Erro na busca:', error);
       throw error;
     }
   },
 
-  // Parsear filme para formato padrão
+  // Parsear filme
   parseMovie(data: any): VercelMovie {
     if (!data) return this.getDefaultMovie();
 
