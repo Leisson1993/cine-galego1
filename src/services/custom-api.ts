@@ -61,7 +61,7 @@ export const customApiService = {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json, text/plain, */*',
+          'Accept': 'application/json',
         },
       });
       
@@ -69,36 +69,17 @@ export const customApiService = {
         throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
       }
 
-      // Pegar o texto bruto primeiro
-      const textResponse = await response.text();
-      console.log('📄 Resposta bruta (primeiros 500 caracteres):', textResponse.substring(0, 500));
+      const data = await response.json();
       
-      // Tentar parsear como JSON
-      let data;
-      try {
-        data = JSON.parse(textResponse);
-        console.log('✅ JSON parseado com sucesso:', data);
-      } catch (parseError) {
-        console.error('❌ Erro ao parsear JSON:', parseError);
-        console.log('📄 Resposta completa:', textResponse);
-        
-        // Se não for JSON, tentar extrair dados de outra forma
-        // Pode ser HTML, XML, ou outro formato
-        throw new Error(`A API retornou um formato inválido. Tipo: ${response.headers.get('content-type')}`);
-      }
+      console.log('✅ Resposta da API:', data);
+      console.log(`📦 Total de filmes: ${Array.isArray(data) ? data.length : 0}`);
 
-      // Adaptar a resposta da API para o formato esperado
+      // A API retorna um array direto
       const movies = this.parseMoviesFromResponse(data);
-      
-      if (movies.length === 0) {
-        console.warn('⚠️ Nenhum filme encontrado na resposta');
-      } else {
-        console.log(`✅ ${movies.length} filmes encontrados`);
-      }
       
       return {
         results: movies,
-        total_pages: data.total_pages || data.totalPages || 1,
+        total_pages: 1, // A API não retorna paginação, então assumimos 1 página
       };
     } catch (error) {
       console.error('❌ Erro ao buscar filmes por categoria:', error);
@@ -109,7 +90,6 @@ export const customApiService = {
   // Buscar todos os filmes (página inicial)
   async getAllMovies(page: number = 1): Promise<{ results: CustomMovie[]; total_pages: number }> {
     try {
-      // Buscar filmes de ação como padrão para "Todos"
       return await this.getMoviesByCategory('categoria-acao', page);
     } catch (error) {
       console.error('❌ Erro ao buscar todos os filmes:', error);
@@ -128,7 +108,7 @@ export const customApiService = {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json, text/plain, */*',
+          'Accept': 'application/json',
         },
       });
       
@@ -136,17 +116,9 @@ export const customApiService = {
         throw new Error(`Erro na API: ${response.status}`);
       }
 
-      const textResponse = await response.text();
-      console.log('📄 Resposta bruta:', textResponse.substring(0, 500));
+      const data = await response.json();
       
-      let data;
-      try {
-        data = JSON.parse(textResponse);
-        console.log('✅ Detalhes do filme:', data);
-      } catch (parseError) {
-        console.error('❌ Erro ao parsear JSON:', parseError);
-        throw new Error('A API retornou um formato inválido');
-      }
+      console.log('✅ Detalhes do filme:', data);
 
       return this.parseMovieDetails(data);
     } catch (error) {
@@ -166,7 +138,7 @@ export const customApiService = {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json, text/plain, */*',
+          'Accept': 'application/json',
         },
       });
       
@@ -174,23 +146,15 @@ export const customApiService = {
         throw new Error(`Erro na API: ${response.status}`);
       }
 
-      const textResponse = await response.text();
-      console.log('📄 Resposta bruta:', textResponse.substring(0, 500));
+      const data = await response.json();
       
-      let data;
-      try {
-        data = JSON.parse(textResponse);
-        console.log('✅ Resultados da busca:', data);
-      } catch (parseError) {
-        console.error('❌ Erro ao parsear JSON:', parseError);
-        throw new Error('A API retornou um formato inválido');
-      }
+      console.log('✅ Resultados da busca:', data);
 
       const movies = this.parseMoviesFromResponse(data);
       
       return {
         results: movies,
-        total_pages: data.total_pages || data.totalPages || 1,
+        total_pages: 1,
       };
     } catch (error) {
       console.error('❌ Erro ao buscar filmes:', error);
@@ -200,60 +164,33 @@ export const customApiService = {
 
   // Parsear resposta da API para o formato CustomMovie
   parseMoviesFromResponse(data: any): CustomMovie[] {
-    console.log('🔄 Parseando resposta:', data);
-    
-    // Tentar diferentes estruturas de resposta
-    let moviesArray: any[] = [];
-    
-    if (Array.isArray(data)) {
-      moviesArray = data;
-    } else if (data && Array.isArray(data.filmes)) {
-      moviesArray = data.filmes;
-    } else if (data && Array.isArray(data.results)) {
-      moviesArray = data.results;
-    } else if (data && Array.isArray(data.movies)) {
-      moviesArray = data.movies;
-    } else if (data && Array.isArray(data.data)) {
-      moviesArray = data.data;
-    } else if (data && typeof data === 'object') {
-      // Se for um objeto, tentar pegar o primeiro array que encontrar
-      const keys = Object.keys(data);
-      for (const key of keys) {
-        if (Array.isArray(data[key])) {
-          moviesArray = data[key];
-          console.log(`📦 Filmes encontrados na chave: ${key}`);
-          break;
-        }
-      }
-    }
-    
-    if (moviesArray.length === 0) {
-      console.warn('⚠️ Nenhum array de filmes encontrado na resposta');
-      console.log('📊 Estrutura da resposta:', Object.keys(data || {}));
+    if (!Array.isArray(data)) {
+      console.warn('⚠️ Resposta não é um array:', data);
       return [];
     }
 
-    console.log(`📦 Parseando ${moviesArray.length} filmes`);
+    console.log(`📦 Parseando ${data.length} filmes`);
 
-    return moviesArray.map((movie: any, index: number) => {
+    return data.map((movie: any, index: number) => {
+      // A API retorna: id, nome, imagem, imagem_original, tipo, temporadas, total_filme, versao_config
       const parsed = {
-        id: movie.id || movie.ID || movie._id || `movie-${index}`,
-        titulo: movie.titulo || movie.nome || movie.title || movie.name || 'Sem título',
-        ano: movie.ano || movie.year || movie.releaseYear || 'N/A',
-        genero: this.parseGenres(movie.genero || movie.categoria || movie.genre || movie.genres || movie.category),
-        nota: this.parseRating(movie.nota || movie.rating || movie.imdb || movie.score || movie.vote_average),
-        duracao: movie.duracao || movie.duration || movie.runtime || 'N/A',
-        imagem: movie.imagem || movie.poster || movie.capa || movie.image || movie.poster_path || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
-        imagemFundo: movie.imagemFundo || movie.backdrop || movie.background || movie.backdrop_path,
-        descricao: movie.descricao || movie.sinopse || movie.description || movie.overview || movie.plot || 'Sem descrição disponível',
-        diretor: movie.diretor || movie.director,
-        elenco: this.parseCast(movie.elenco || movie.cast || movie.actors),
-        link: movie.link || movie.url || movie.player || movie.stream,
+        id: movie.id || `movie-${index}`,
+        titulo: movie.nome || movie.titulo || movie.title || 'Sem título',
+        ano: movie.ano || movie.year || '2024', // A API não retorna ano, usar padrão
+        genero: this.parseGenres(movie.genero || movie.categoria || movie.tipo || 'Ação'),
+        nota: this.parseRating(movie.nota || movie.rating || 7.5), // Nota padrão
+        duracao: movie.duracao || movie.duration || '2h',
+        imagem: movie.imagem_original || movie.imagem || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+        imagemFundo: movie.imagem_original || movie.imagem,
+        descricao: movie.descricao || movie.sinopse || movie.description || 'Sem descrição disponível',
+        diretor: movie.diretor || movie.director || 'N/A',
+        elenco: this.parseCast(movie.elenco || movie.cast),
+        link: movie.link || movie.url,
         qualidade: movie.qualidade || movie.quality || 'HD',
-        idioma: movie.idioma || movie.language || movie.lang || 'Dublado',
+        idioma: movie.tipo || movie.idioma || 'DUB',
       };
       
-      console.log(`✅ Filme parseado: ${parsed.titulo} (${parsed.ano})`);
+      console.log(`✅ Filme parseado: ${parsed.titulo}`);
       return parsed;
     });
   },
@@ -262,21 +199,24 @@ export const customApiService = {
   parseMovieDetails(data: any): CustomMovie | null {
     if (!data) return null;
 
+    // Se for um array, pegar o primeiro item
+    const movieData = Array.isArray(data) ? data[0] : data;
+
     return {
-      id: data.id || data.ID || data._id || 'unknown',
-      titulo: data.titulo || data.nome || data.title || data.name || 'Sem título',
-      ano: data.ano || data.year || data.releaseYear || 'N/A',
-      genero: this.parseGenres(data.genero || data.categoria || data.genre || data.genres),
-      nota: this.parseRating(data.nota || data.rating || data.imdb || data.score),
-      duracao: data.duracao || data.duration || data.runtime || 'N/A',
-      imagem: data.imagem || data.poster || data.capa || data.image || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
-      imagemFundo: data.imagemFundo || data.backdrop || data.background,
-      descricao: data.descricao || data.sinopse || data.description || data.overview || 'Sem descrição disponível',
-      diretor: data.diretor || data.director,
-      elenco: this.parseCast(data.elenco || data.cast || data.actors),
-      link: data.link || data.url || data.player || data.stream,
-      qualidade: data.qualidade || data.quality || 'HD',
-      idioma: data.idioma || data.language || 'Dublado',
+      id: movieData.id || 'unknown',
+      titulo: movieData.nome || movieData.titulo || movieData.title || 'Sem título',
+      ano: movieData.ano || movieData.year || '2024',
+      genero: this.parseGenres(movieData.genero || movieData.categoria || movieData.tipo || 'Ação'),
+      nota: this.parseRating(movieData.nota || movieData.rating || 7.5),
+      duracao: movieData.duracao || movieData.duration || '2h',
+      imagem: movieData.imagem_original || movieData.imagem || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+      imagemFundo: movieData.imagem_original || movieData.imagem,
+      descricao: movieData.descricao || movieData.sinopse || movieData.description || 'Sem descrição disponível',
+      diretor: movieData.diretor || movieData.director || 'N/A',
+      elenco: this.parseCast(movieData.elenco || movieData.cast),
+      link: movieData.link || movieData.url,
+      qualidade: movieData.qualidade || movieData.quality || 'HD',
+      idioma: movieData.tipo || movieData.idioma || 'DUB',
     };
   },
 
@@ -288,13 +228,13 @@ export const customApiService = {
     if (typeof genres === 'string') {
       return genres.split(',').map(g => g.trim()).filter(Boolean);
     }
-    return [];
+    return ['Ação']; // Gênero padrão
   },
 
   // Parsear nota
   parseRating(rating: any): number {
     const parsed = parseFloat(rating);
-    return isNaN(parsed) ? 0 : Math.min(10, Math.max(0, parsed));
+    return isNaN(parsed) ? 7.5 : Math.min(10, Math.max(0, parsed));
   },
 
   // Parsear elenco
