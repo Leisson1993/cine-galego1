@@ -6,7 +6,7 @@ import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2, Refresh
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -17,6 +17,18 @@ const MovieDetails = () => {
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
+
+  // Adicionar meta tag de referrer quando o componente montar
+  useEffect(() => {
+    const metaReferrer = document.createElement('meta');
+    metaReferrer.name = 'referrer';
+    metaReferrer.content = 'no-referrer';
+    document.head.appendChild(metaReferrer);
+
+    return () => {
+      document.head.removeChild(metaReferrer);
+    };
+  }, []);
 
   const handleRefresh = () => {
     setPlayerKey(prev => prev + 1);
@@ -185,8 +197,8 @@ const MovieDetails = () => {
                           className="absolute top-0 left-0 w-full h-full"
                           allowFullScreen
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          referrerPolicy="no-referrer-when-downgrade"
-                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
+                          referrerPolicy="origin"
+                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation allow-popups-to-escape-sandbox"
                           title={movie.title}
                         />
                       </div>
