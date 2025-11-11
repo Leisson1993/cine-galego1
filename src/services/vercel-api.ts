@@ -20,6 +20,7 @@ export interface VercelMovie {
   link?: string;
   quality?: string;
   language?: string;
+  alternativeLinks?: string[];
   [key: string]: any;
 }
 
@@ -191,19 +192,25 @@ export const vercelApiService = {
     }
   },
 
+  // Gerar múltiplos links alternativos de embed
+  generateEmbedLinks(movieSlug: string): string[] {
+    const links = [
+      // Diferentes servidores de embed populares
+      `https://embed.warezcdn.com/filme/${movieSlug}`,
+      `https://embedder.net/e/${movieSlug}`,
+      `https://player.smashy.stream/movie/${movieSlug}`,
+      `https://vidsrc.to/embed/movie/${movieSlug}`,
+      `https://vidsrc.me/embed/movie?tmdb=${movieSlug}`,
+      `https://www.2embed.to/embed/tmdb/movie?id=${movieSlug}`,
+      `https://multiembed.mov/directstream.php?video_id=${movieSlug}`,
+    ];
+    
+    return links;
+  },
+
   // Parsear filme - AJUSTADO para o formato correto da API
   parseMovie(data: any): VercelMovie {
     if (!data) return this.getDefaultMovie();
-
-    // Formato da API:
-    // {
-    //   "ano": "2024",
-    //   "capa": "https://image.tmdb.org/t/p/w300//...",
-    //   "duracao": "107 Min",
-    //   "imdb": "IMDb 4.5",
-    //   "link": "assassinos-sadicos-3-carnificina",
-    //   "titulo": "Assassinos Sádicos 3: Carnificina"
-    // }
 
     // Usar o link como ID único
     const id = data.link || `movie-${Date.now()}-${Math.random()}`;
@@ -211,8 +218,9 @@ export const vercelApiService = {
     // Extrair nota do IMDb (ex: "IMDb 4.5" -> 4.5)
     const imdbRating = data.imdb ? parseFloat(data.imdb.replace('IMDb', '').trim()) : 7.0;
 
-    // Gerar link do player
-    const playerLink = data.link ? `https://embed.warezcdn.com/filme/${data.link}` : null;
+    // Gerar múltiplos links de player
+    const alternativeLinks = this.generateEmbedLinks(data.link);
+    const primaryLink = alternativeLinks[0]; // Usar o primeiro como principal
 
     const parsed: VercelMovie = {
       id,
@@ -226,7 +234,8 @@ export const vercelApiService = {
       description: `${data.titulo} (${data.ano})`, // A API não retorna descrição
       director: 'N/A',
       cast: [],
-      link: playerLink,
+      link: primaryLink,
+      alternativeLinks: alternativeLinks,
       quality: 'HD',
       language: 'DUB',
     };
@@ -298,6 +307,7 @@ export const vercelApiService = {
       director: vercelMovie.director,
       cast: vercelMovie.cast,
       link: vercelMovie.link,
+      alternativeLinks: vercelMovie.alternativeLinks,
       quality: vercelMovie.quality,
       language: vercelMovie.language,
     };

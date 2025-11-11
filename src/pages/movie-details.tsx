@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2, RefreshCw, Server } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,12 +14,20 @@ const MovieDetails = () => {
   const { useMovieDetails } = useVercelMovies();
   const [showPlayer, setShowPlayer] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
+  const [currentServerIndex, setCurrentServerIndex] = useState(0);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
   const handleRefresh = () => {
     setPlayerKey(prev => prev + 1);
   };
+
+  const handleServerChange = (index: number) => {
+    setCurrentServerIndex(index);
+    setPlayerKey(prev => prev + 1);
+  };
+
+  const currentLink = movie?.alternativeLinks?.[currentServerIndex] || movie?.link;
 
   if (isLoading) {
     return (
@@ -165,7 +173,7 @@ const MovieDetails = () => {
             )}
 
             {/* Player Embutido ou Botão */}
-            {movie.link ? (
+            {currentLink ? (
               <Card className="border-2 border-primary/20">
                 <CardContent className="p-6 space-y-4">
                   {showPlayer ? (
@@ -173,7 +181,7 @@ const MovieDetails = () => {
                       <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
                         <iframe
                           key={playerKey}
-                          src={movie.link}
+                          src={currentLink}
                           className="absolute top-0 left-0 w-full h-full"
                           allowFullScreen
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -182,6 +190,29 @@ const MovieDetails = () => {
                           title={movie.title}
                         />
                       </div>
+                      
+                      {/* Seletor de Servidores */}
+                      {movie.alternativeLinks && movie.alternativeLinks.length > 1 && (
+                        <div>
+                          <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                            <Server className="w-4 h-4" />
+                            Servidores Disponíveis
+                          </h4>
+                          <div className="grid grid-cols-3 gap-2">
+                            {movie.alternativeLinks.map((_, index) => (
+                              <Button
+                                key={index}
+                                variant={currentServerIndex === index ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handleServerChange(index)}
+                              >
+                                Servidor {index + 1}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
@@ -195,7 +226,7 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(movie.link, '_blank')}
+                          onClick={() => window.open(currentLink, '_blank')}
                           className="flex-1"
                         >
                           <Maximize2 className="w-4 h-4 mr-2" />
@@ -212,7 +243,7 @@ const MovieDetails = () => {
                       </div>
                       <Alert>
                         <AlertDescription className="text-xs">
-                          💡 <strong>Dica:</strong> Se o vídeo não carregar, clique em "Recarregar" ou "Tela Cheia" para abrir em uma nova aba.
+                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor ou clique em "Tela Cheia".
                         </AlertDescription>
                       </Alert>
                     </>
