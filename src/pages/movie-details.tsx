@@ -1,17 +1,15 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useMovies } from "@/hooks/use-movies";
+import { useCustomMovies } from "@/hooks/use-custom-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, ExternalLink } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { tmdbService } from "@/services/tmdb";
-import { StreamingOptions } from "@/components/streaming-options";
-import { PeelinkPlayer } from "@/components/peelink-player";
+import { Badge } from "@/components/ui/badge";
 
 const MovieDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { useMovieDetails } = useMovies();
+  const { useMovieDetails } = useCustomMovies();
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
@@ -46,11 +44,8 @@ const MovieDetails = () => {
     );
   }
 
-  const director = movie.credits?.crew.find(person => person.job === "Director");
-  const cast = movie.credits?.cast.slice(0, 5) || [];
-  const backdropUrl = tmdbService.getImageUrl(movie.backdrop_path, 'original');
-  const posterUrl = tmdbService.getImageUrl(movie.poster_path, 'w500');
-  const movieYear = new Date(movie.release_date).getFullYear().toString();
+  const backdropUrl = movie.backdrop || movie.image;
+  const posterUrl = movie.image;
 
   return (
     <div className="min-h-screen bg-background">
@@ -84,53 +79,81 @@ const MovieDetails = () => {
               />
             </Card>
 
-            {/* Opções de Streaming Legais - Apenas em desktop */}
-            <div className="hidden lg:block">
-              <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
-            </div>
+            {/* Informações Extras */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                {movie.quality && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-1">Qualidade</h4>
+                    <Badge variant="secondary">{movie.quality}</Badge>
+                  </div>
+                )}
+                {movie.language && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-1">Idioma</h4>
+                    <Badge variant="secondary">{movie.language}</Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Coluna Direita - Informações e Player */}
           <div className="space-y-6">
             {/* Informações do Filme */}
             <div>
-              <h1 className="text-4xl font-bold mb-2">{movie.title}</h1>
-              {movie.tagline && (
-                <p className="text-lg text-muted-foreground italic mb-4">"{movie.tagline}"</p>
-              )}
+              <h1 className="text-4xl font-bold mb-4">{movie.title}</h1>
               <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold">{Math.round(movie.vote_average * 10) / 10}</span>
-                  <span className="text-sm">({movie.vote_count} votos)</span>
+                  <span className="font-semibold">{movie.rating}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="w-5 h-5" />
-                  <span>{movieYear}</span>
+                  <span>{movie.year}</span>
                 </div>
-                {movie.runtime && (
+                {movie.duration && movie.duration !== 'N/A' && (
                   <div className="flex items-center gap-1">
                     <Clock className="w-5 h-5" />
-                    <span>{Math.floor(movie.runtime / 60)}h {movie.runtime % 60}min</span>
+                    <span>{movie.duration}</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Gêneros */}
-            <div className="flex flex-wrap gap-2">
-              {movie.genres.map((genre) => (
-                <span
-                  key={genre.id}
-                  className="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium"
-                >
-                  {genre.name}
-                </span>
-              ))}
-            </div>
+            {movie.genre && movie.genre.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {movie.genre.map((genre: string, index: number) => (
+                  <span
+                    key={index}
+                    className="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium"
+                  >
+                    {genre}
+                  </span>
+                ))}
+              </div>
+            )}
 
-            {/* Player do Peelink - DESTAQUE */}
-            <PeelinkPlayer movieTitle={movie.title} movieYear={movieYear} />
+            {/* Botão de Assistir */}
+            {movie.link && (
+              <Card className="border-2 border-primary/20">
+                <CardContent className="p-6">
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={() => window.open(movie.link, '_blank')}
+                  >
+                    <Play className="w-5 h-5 mr-2" />
+                    Assistir Agora
+                    <ExternalLink className="w-4 h-4 ml-2" />
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-3">
+                    Clique para assistir em uma nova aba
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Sinopse e Detalhes */}
             <Card>
@@ -138,50 +161,27 @@ const MovieDetails = () => {
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Sinopse</h3>
                   <p className="text-muted-foreground leading-relaxed">
-                    {movie.overview || 'Sem descrição disponível'}
+                    {movie.description || 'Sem descrição disponível'}
                   </p>
                 </div>
 
-                {director && (
+                {movie.director && movie.director !== 'N/A' && (
                   <div>
                     <h3 className="font-semibold text-lg mb-2">Diretor</h3>
-                    <p className="text-muted-foreground">{director.name}</p>
+                    <p className="text-muted-foreground">{movie.director}</p>
                   </div>
                 )}
 
-                {cast.length > 0 && (
+                {movie.cast && movie.cast.length > 0 && (
                   <div>
                     <h3 className="font-semibold text-lg mb-2">Elenco Principal</h3>
                     <p className="text-muted-foreground">
-                      {cast.map(actor => actor.name).join(", ")}
-                    </p>
-                  </div>
-                )}
-
-                {movie.budget > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-lg mb-2">Orçamento</h3>
-                    <p className="text-muted-foreground">
-                      ${movie.budget.toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                )}
-
-                {movie.revenue > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-lg mb-2">Bilheteria</h3>
-                    <p className="text-muted-foreground">
-                      ${movie.revenue.toLocaleString('pt-BR')}
+                      {movie.cast.join(", ")}
                     </p>
                   </div>
                 )}
               </CardContent>
             </Card>
-
-            {/* Opções de Streaming - Mobile */}
-            <div className="lg:hidden">
-              <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
-            </div>
           </div>
         </div>
       </div>

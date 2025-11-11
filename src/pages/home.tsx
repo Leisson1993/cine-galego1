@@ -1,75 +1,40 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/header";
 import { CategoryFilter } from "@/components/category-filter";
 import { MovieCard } from "@/components/movie-card";
-import { useMovies } from "@/hooks/use-movies";
+import { useCustomMovies } from "@/hooks/use-custom-movies";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Wifi } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [page] = useState(1);
 
-  const { genres, usePopularMovies, useMoviesByGenre, useSearchMovies } = useMovies();
+  const { categories, useAllMovies, useMoviesByCategory, useSearchMovies } = useCustomMovies();
 
-  // Determinar qual query usar
-  const selectedGenreId = useMemo(() => {
-    if (selectedCategory === "all") return 0;
-    const genre = genres.find(g => g.name.toLowerCase() === selectedCategory.toLowerCase());
-    return genre?.id || 0;
-  }, [selectedCategory, genres]);
+  // Determinar qual API slug usar
+  const selectedCategorySlug = useMemo(() => {
+    if (selectedCategory === "all") return "";
+    const category = categories.find(c => c.slug === selectedCategory);
+    return category?.apiSlug || "";
+  }, [selectedCategory, categories]);
 
   // Buscar filmes baseado no estado
-  const popularQuery = usePopularMovies(page);
-  const genreQuery = useMoviesByGenre(selectedGenreId, page);
-  const searchQuery_result = useSearchMovies(searchQuery, page);
+  const allMoviesQuery = useAllMovies(page);
+  const categoryQuery = useMoviesByCategory(selectedCategorySlug, page);
+  const searchQueryResult = useSearchMovies(searchQuery, page);
 
   // Determinar qual resultado usar
-  const { data, isLoading, error } = useMemo(() => {
-    if (searchQuery.length > 0) return searchQuery_result;
-    if (selectedGenreId > 0) return genreQuery;
-    return popularQuery;
-  }, [searchQuery, selectedGenreId, searchQuery_result, genreQuery, popularQuery]);
+  const { data, isLoading, error, refetch } = useMemo(() => {
+    if (searchQuery.length > 0) return searchQueryResult;
+    if (selectedCategorySlug) return categoryQuery;
+    return allMoviesQuery;
+  }, [searchQuery, selectedCategorySlug, searchQueryResult, categoryQuery, allMoviesQuery]);
 
   const movies = data?.results || [];
-
-  // Criar categorias a partir dos gêneros da API
-  const categories = useMemo(() => {
-    return [
-      { id: "all", name: "Todos", slug: "all" },
-      ...genres.map(genre => ({
-        id: genre.id.toString(),
-        name: genre.name,
-        slug: genre.name.toLowerCase(),
-      }))
-    ];
-  }, [genres]);
-
-  // Verificar se a API key está configurada
-  useEffect(() => {
-    const apiKey = import.meta.env.VITE_TMDB_API_KEY;
-    console.log('TMDB API Key configurada:', apiKey ? 'Sim' : 'Não');
-    console.log('TMDB API Key (primeiros 10 caracteres):', apiKey ? apiKey.substring(0, 10) + '...' : 'Não configurada');
-    
-    if (!apiKey) {
-      console.error('❌ TMDB API Key não configurada! Configure VITE_TMDB_API_KEY no arquivo .env');
-    }
-  }, []);
-
-  // Log de debug
-  useEffect(() => {
-    console.log('Estado atual:', {
-      searchQuery,
-      selectedCategory,
-      selectedGenreId,
-      genresCount: genres.length,
-      moviesCount: movies.length,
-      isLoading,
-      hasError: !!error
-    });
-  }, [searchQuery, selectedCategory, selectedGenreId, genres.length, movies.length, isLoading, error]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -82,37 +47,27 @@ const Home = () => {
       />
 
       <main className="container px-4 py-8">
-        {!import.meta.env.VITE_TMDB_API_KEY && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>⚠️ API Key não configurada!</strong>
-              <br />
-              Configure sua chave de API do TMDB no arquivo .env como VITE_TMDB_API_KEY
-              <br />
-              <a 
-                href="https://www.themoviedb.org/settings/api" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="underline hover:text-white"
-              >
-                Clique aqui para obter sua chave gratuita
-              </a>
-            </AlertDescription>
-          </Alert>
-        )}
-
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Erro ao carregar filmes:</strong>
-              <br />
-              {error.message || 'Erro desconhecido'}
-              <br />
-              <span className="text-sm">
-                Verifique sua conexão com a internet e se a API key está correta.
-              </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <strong>Erro ao carregar filmes</strong>
+                  <br />
+                  <span className="text-sm">
+                    {error.message || 'Verifique sua conexão com a internet'}
+                  </span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => refetch()}
+                >
+                  <Wifi className="w-4 h-4 mr-2" />
+                  Tentar Novamente
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -141,17 +96,12 @@ const Home = () => {
                 Tente buscar por outro termo
               </p>
             )}
-            {!import.meta.env.VITE_TMDB_API_KEY && (
-              <p className="text-sm text-destructive mt-4">
-                Configure a API key do TMDB para ver os filmes
-              </p>
-            )}
           </div>
         ) : (
           <>
             <h2 className="text-2xl font-bold mb-6">
               {searchQuery ? `Resultados para "${searchQuery}"` : 
-               selectedCategory === "all" ? "Filmes Populares" : 
+               selectedCategory === "all" ? "Filmes em Destaque" : 
                categories.find(c => c.slug === selectedCategory)?.name}
               <span className="text-muted-foreground ml-2">
                 ({movies.length})
