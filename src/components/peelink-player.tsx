@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Film, Maximize2, ExternalLink } from "lucide-react";
+import { Play, Film, Maximize2, ExternalLink, RefreshCw } from "lucide-react";
 import { peelinkService } from "@/services/peelink";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,18 +13,19 @@ interface PeelinkPlayerProps {
 }
 
 export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => {
-  const [peelinkUrls, setPeelinkUrls] = useState<string[]>([]);
+  const [embedUrls, setEmbedUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
+  const [currentServerIndex, setCurrentServerIndex] = useState(0);
 
   useEffect(() => {
-    const loadPeelinkUrls = async () => {
+    const loadEmbedUrls = async () => {
       setLoading(true);
       
-      // Gerar URLs possíveis
-      const urls = peelinkService.generateMultipleUrls(movieTitle, movieYear);
-      setPeelinkUrls(urls);
+      // Gerar URLs de embed
+      const urls = peelinkService.generateEmbedUrls(movieTitle, movieYear);
+      setEmbedUrls(urls);
 
       // Definir primeira URL como padrão
       if (urls.length > 0) {
@@ -34,10 +35,24 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
       setLoading(false);
     };
 
-    loadPeelinkUrls();
+    loadEmbedUrls();
   }, [movieTitle, movieYear]);
 
   const languages = peelinkService.getLanguageOptions();
+
+  const handleServerChange = (index: number) => {
+    setCurrentServerIndex(index);
+    setSelectedUrl(embedUrls[index]);
+    if (showPlayer) {
+      setShowPlayer(false);
+      setTimeout(() => setShowPlayer(true), 100);
+    }
+  };
+
+  const handleRefresh = () => {
+    setShowPlayer(false);
+    setTimeout(() => setShowPlayer(true), 100);
+  };
 
   if (loading) {
     return (
@@ -78,18 +93,30 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
         {/* Player Embutido */}
         {showPlayer && selectedUrl ? (
           <div className="space-y-4">
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+            <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
               <iframe
+                key={selectedUrl}
                 src={selectedUrl}
-                className="absolute top-0 left-0 w-full h-full rounded-lg border-2 border-primary"
+                className="absolute top-0 left-0 w-full h-full"
                 allowFullScreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="no-referrer-when-downgrade"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                 title="Peelink Player"
               />
             </div>
             
             {/* Botões de Controle */}
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="flex-1"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Recarregar
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -105,7 +132,7 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
                 onClick={() => setShowPlayer(false)}
                 className="flex-1"
               >
-                Fechar Player
+                Fechar
               </Button>
             </div>
           </div>
@@ -121,30 +148,24 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
         )}
 
         {/* Servidores Alternativos */}
-        {peelinkUrls.length > 1 && (
+        {embedUrls.length > 1 && (
           <div>
             <h4 className="font-semibold mb-2 text-sm text-muted-foreground">
               Servidores Alternativos
             </h4>
-            <Tabs defaultValue="0" className="w-full">
-              <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${Math.min(peelinkUrls.length, 3)}, 1fr)` }}>
-                {peelinkUrls.slice(0, 3).map((url, index) => (
-                  <TabsTrigger 
-                    key={index} 
-                    value={index.toString()}
-                    onClick={() => {
-                      setSelectedUrl(url);
-                      if (showPlayer) {
-                        setShowPlayer(false);
-                        setTimeout(() => setShowPlayer(true), 100);
-                      }
-                    }}
-                  >
-                    Servidor {index + 1}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            <div className="grid grid-cols-3 gap-2">
+              {embedUrls.slice(0, 6).map((url, index) => (
+                <Button
+                  key={index}
+                  variant={currentServerIndex === index ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleServerChange(index)}
+                  className="w-full"
+                >
+                  Servidor {index + 1}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -154,22 +175,20 @@ export const PeelinkPlayer = ({ movieTitle, movieYear }: PeelinkPlayerProps) => 
             variant="ghost"
             size="sm"
             className="w-full"
-            onClick={() => window.open(selectedUrl || peelinkUrls[0], '_blank')}
+            onClick={() => window.open(peelinkService.generatePeelinkUrl(movieTitle, movieYear), '_blank')}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
-            Abrir no Peelink (Nova Aba)
+            Abrir Página Completa do Peelink
           </Button>
         </div>
 
         {/* Informações */}
-        <div className="pt-2">
-          <p className="text-xs text-muted-foreground text-center">
-            Player integrado do Peelink
-          </p>
-          <p className="text-xs text-muted-foreground text-center mt-1">
-            Disponível em múltiplos servidores e idiomas
-          </p>
-        </div>
+        <Alert>
+          <AlertDescription className="text-xs">
+            <strong>Dica:</strong> Se o player não carregar, tente outro servidor ou abra a página completa do Peelink.
+            Alguns servidores podem ter proteção contra embed.
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   );
