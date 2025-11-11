@@ -55,12 +55,13 @@ export const customApiService = {
 
       const url = `${API_BASE_URL}?v=${API_VERSION}&tipo=categoria&nome=${categorySlug}&pagina=${page}&hwid=null`;
       
-      console.log('Buscando filmes da categoria:', category.name, 'URL:', url);
+      console.log('🔍 Buscando filmes da categoria:', category.name);
+      console.log('📡 URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
         },
       });
       
@@ -68,26 +69,39 @@ export const customApiService = {
         throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
       }
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Resposta não é JSON:', text);
-        throw new Error('A API não retornou JSON válido');
-      }
-
-      const data = await response.json();
+      // Pegar o texto bruto primeiro
+      const textResponse = await response.text();
+      console.log('📄 Resposta bruta (primeiros 500 caracteres):', textResponse.substring(0, 500));
       
-      console.log('Resposta da API:', data);
+      // Tentar parsear como JSON
+      let data;
+      try {
+        data = JSON.parse(textResponse);
+        console.log('✅ JSON parseado com sucesso:', data);
+      } catch (parseError) {
+        console.error('❌ Erro ao parsear JSON:', parseError);
+        console.log('📄 Resposta completa:', textResponse);
+        
+        // Se não for JSON, tentar extrair dados de outra forma
+        // Pode ser HTML, XML, ou outro formato
+        throw new Error(`A API retornou um formato inválido. Tipo: ${response.headers.get('content-type')}`);
+      }
 
       // Adaptar a resposta da API para o formato esperado
       const movies = this.parseMoviesFromResponse(data);
       
+      if (movies.length === 0) {
+        console.warn('⚠️ Nenhum filme encontrado na resposta');
+      } else {
+        console.log(`✅ ${movies.length} filmes encontrados`);
+      }
+      
       return {
         results: movies,
-        total_pages: data.total_pages || 1,
+        total_pages: data.total_pages || data.totalPages || 1,
       };
     } catch (error) {
-      console.error('Erro ao buscar filmes por categoria:', error);
+      console.error('❌ Erro ao buscar filmes por categoria:', error);
       throw error;
     }
   },
@@ -98,7 +112,7 @@ export const customApiService = {
       // Buscar filmes de ação como padrão para "Todos"
       return await this.getMoviesByCategory('categoria-acao', page);
     } catch (error) {
-      console.error('Erro ao buscar todos os filmes:', error);
+      console.error('❌ Erro ao buscar todos os filmes:', error);
       throw error;
     }
   },
@@ -108,12 +122,13 @@ export const customApiService = {
     try {
       const url = `${API_BASE_URL}?v=${API_VERSION}&tipo=detalhes&id=${movieId}&hwid=null`;
       
-      console.log('Buscando detalhes do filme:', movieId, 'URL:', url);
+      console.log('🔍 Buscando detalhes do filme:', movieId);
+      console.log('📡 URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
         },
       });
       
@@ -121,13 +136,21 @@ export const customApiService = {
         throw new Error(`Erro na API: ${response.status}`);
       }
 
-      const data = await response.json();
+      const textResponse = await response.text();
+      console.log('📄 Resposta bruta:', textResponse.substring(0, 500));
       
-      console.log('Detalhes do filme:', data);
+      let data;
+      try {
+        data = JSON.parse(textResponse);
+        console.log('✅ Detalhes do filme:', data);
+      } catch (parseError) {
+        console.error('❌ Erro ao parsear JSON:', parseError);
+        throw new Error('A API retornou um formato inválido');
+      }
 
       return this.parseMovieDetails(data);
     } catch (error) {
-      console.error('Erro ao buscar detalhes do filme:', error);
+      console.error('❌ Erro ao buscar detalhes do filme:', error);
       return null;
     }
   },
@@ -137,12 +160,13 @@ export const customApiService = {
     try {
       const url = `${API_BASE_URL}?v=${API_VERSION}&tipo=busca&query=${encodeURIComponent(query)}&pagina=${page}&hwid=null`;
       
-      console.log('Buscando filmes:', query, 'URL:', url);
+      console.log('🔍 Buscando filmes:', query);
+      console.log('📡 URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
         },
       });
       
@@ -150,47 +174,88 @@ export const customApiService = {
         throw new Error(`Erro na API: ${response.status}`);
       }
 
-      const data = await response.json();
+      const textResponse = await response.text();
+      console.log('📄 Resposta bruta:', textResponse.substring(0, 500));
       
-      console.log('Resultados da busca:', data);
+      let data;
+      try {
+        data = JSON.parse(textResponse);
+        console.log('✅ Resultados da busca:', data);
+      } catch (parseError) {
+        console.error('❌ Erro ao parsear JSON:', parseError);
+        throw new Error('A API retornou um formato inválido');
+      }
 
       const movies = this.parseMoviesFromResponse(data);
       
       return {
         results: movies,
-        total_pages: data.total_pages || 1,
+        total_pages: data.total_pages || data.totalPages || 1,
       };
     } catch (error) {
-      console.error('Erro ao buscar filmes:', error);
+      console.error('❌ Erro ao buscar filmes:', error);
       throw error;
     }
   },
 
   // Parsear resposta da API para o formato CustomMovie
   parseMoviesFromResponse(data: any): CustomMovie[] {
-    if (!data || !Array.isArray(data.filmes) && !Array.isArray(data.results) && !Array.isArray(data)) {
-      console.warn('Formato de resposta inesperado:', data);
+    console.log('🔄 Parseando resposta:', data);
+    
+    // Tentar diferentes estruturas de resposta
+    let moviesArray: any[] = [];
+    
+    if (Array.isArray(data)) {
+      moviesArray = data;
+    } else if (data && Array.isArray(data.filmes)) {
+      moviesArray = data.filmes;
+    } else if (data && Array.isArray(data.results)) {
+      moviesArray = data.results;
+    } else if (data && Array.isArray(data.movies)) {
+      moviesArray = data.movies;
+    } else if (data && Array.isArray(data.data)) {
+      moviesArray = data.data;
+    } else if (data && typeof data === 'object') {
+      // Se for um objeto, tentar pegar o primeiro array que encontrar
+      const keys = Object.keys(data);
+      for (const key of keys) {
+        if (Array.isArray(data[key])) {
+          moviesArray = data[key];
+          console.log(`📦 Filmes encontrados na chave: ${key}`);
+          break;
+        }
+      }
+    }
+    
+    if (moviesArray.length === 0) {
+      console.warn('⚠️ Nenhum array de filmes encontrado na resposta');
+      console.log('📊 Estrutura da resposta:', Object.keys(data || {}));
       return [];
     }
 
-    const moviesArray = data.filmes || data.results || data;
+    console.log(`📦 Parseando ${moviesArray.length} filmes`);
 
-    return moviesArray.map((movie: any, index: number) => ({
-      id: movie.id || movie.ID || `movie-${index}`,
-      titulo: movie.titulo || movie.nome || movie.title || 'Sem título',
-      ano: movie.ano || movie.year || 'N/A',
-      genero: this.parseGenres(movie.genero || movie.categoria || movie.genre),
-      nota: this.parseRating(movie.nota || movie.rating || movie.imdb),
-      duracao: movie.duracao || movie.duration || 'N/A',
-      imagem: movie.imagem || movie.poster || movie.capa || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
-      imagemFundo: movie.imagemFundo || movie.backdrop || movie.background,
-      descricao: movie.descricao || movie.sinopse || movie.description || 'Sem descrição disponível',
-      diretor: movie.diretor || movie.director,
-      elenco: this.parseCast(movie.elenco || movie.cast),
-      link: movie.link || movie.url || movie.player,
-      qualidade: movie.qualidade || movie.quality || 'HD',
-      idioma: movie.idioma || movie.language || 'Dublado',
-    }));
+    return moviesArray.map((movie: any, index: number) => {
+      const parsed = {
+        id: movie.id || movie.ID || movie._id || `movie-${index}`,
+        titulo: movie.titulo || movie.nome || movie.title || movie.name || 'Sem título',
+        ano: movie.ano || movie.year || movie.releaseYear || 'N/A',
+        genero: this.parseGenres(movie.genero || movie.categoria || movie.genre || movie.genres || movie.category),
+        nota: this.parseRating(movie.nota || movie.rating || movie.imdb || movie.score || movie.vote_average),
+        duracao: movie.duracao || movie.duration || movie.runtime || 'N/A',
+        imagem: movie.imagem || movie.poster || movie.capa || movie.image || movie.poster_path || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+        imagemFundo: movie.imagemFundo || movie.backdrop || movie.background || movie.backdrop_path,
+        descricao: movie.descricao || movie.sinopse || movie.description || movie.overview || movie.plot || 'Sem descrição disponível',
+        diretor: movie.diretor || movie.director,
+        elenco: this.parseCast(movie.elenco || movie.cast || movie.actors),
+        link: movie.link || movie.url || movie.player || movie.stream,
+        qualidade: movie.qualidade || movie.quality || 'HD',
+        idioma: movie.idioma || movie.language || movie.lang || 'Dublado',
+      };
+      
+      console.log(`✅ Filme parseado: ${parsed.titulo} (${parsed.ano})`);
+      return parsed;
+    });
   },
 
   // Parsear detalhes do filme
@@ -198,18 +263,18 @@ export const customApiService = {
     if (!data) return null;
 
     return {
-      id: data.id || data.ID || 'unknown',
-      titulo: data.titulo || data.nome || data.title || 'Sem título',
-      ano: data.ano || data.year || 'N/A',
-      genero: this.parseGenres(data.genero || data.categoria || data.genre),
-      nota: this.parseRating(data.nota || data.rating || data.imdb),
-      duracao: data.duracao || data.duration || 'N/A',
-      imagem: data.imagem || data.poster || data.capa || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+      id: data.id || data.ID || data._id || 'unknown',
+      titulo: data.titulo || data.nome || data.title || data.name || 'Sem título',
+      ano: data.ano || data.year || data.releaseYear || 'N/A',
+      genero: this.parseGenres(data.genero || data.categoria || data.genre || data.genres),
+      nota: this.parseRating(data.nota || data.rating || data.imdb || data.score),
+      duracao: data.duracao || data.duration || data.runtime || 'N/A',
+      imagem: data.imagem || data.poster || data.capa || data.image || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
       imagemFundo: data.imagemFundo || data.backdrop || data.background,
-      descricao: data.descricao || data.sinopse || data.description || 'Sem descrição disponível',
+      descricao: data.descricao || data.sinopse || data.description || data.overview || 'Sem descrição disponível',
       diretor: data.diretor || data.director,
-      elenco: this.parseCast(data.elenco || data.cast),
-      link: data.link || data.url || data.player,
+      elenco: this.parseCast(data.elenco || data.cast || data.actors),
+      link: data.link || data.url || data.player || data.stream,
       qualidade: data.qualidade || data.quality || 'HD',
       idioma: data.idioma || data.language || 'Dublado',
     };
@@ -217,8 +282,12 @@ export const customApiService = {
 
   // Parsear gêneros
   parseGenres(genres: any): string[] {
-    if (Array.isArray(genres)) return genres;
-    if (typeof genres === 'string') return genres.split(',').map(g => g.trim());
+    if (Array.isArray(genres)) {
+      return genres.map(g => typeof g === 'string' ? g : g.name || g.nome || '').filter(Boolean);
+    }
+    if (typeof genres === 'string') {
+      return genres.split(',').map(g => g.trim()).filter(Boolean);
+    }
     return [];
   },
 
@@ -230,8 +299,12 @@ export const customApiService = {
 
   // Parsear elenco
   parseCast(cast: any): string[] {
-    if (Array.isArray(cast)) return cast;
-    if (typeof cast === 'string') return cast.split(',').map(c => c.trim());
+    if (Array.isArray(cast)) {
+      return cast.map(c => typeof c === 'string' ? c : c.name || c.nome || '').filter(Boolean);
+    }
+    if (typeof cast === 'string') {
+      return cast.split(',').map(c => c.trim()).filter(Boolean);
+    }
     return [];
   },
 
