@@ -20,6 +20,11 @@ export interface CustomMovie {
   link?: string;
   qualidade?: string;
   idioma?: string;
+  players?: Array<{
+    url: string;
+    servidor: string;
+    qualidade: string;
+  }>;
 }
 
 export interface CustomCategory {
@@ -79,7 +84,7 @@ export const customApiService = {
       
       return {
         results: movies,
-        total_pages: 1, // A API não retorna paginação, então assumimos 1 página
+        total_pages: 1,
       };
     } catch (error) {
       console.error('❌ Erro ao buscar filmes por categoria:', error);
@@ -136,6 +141,47 @@ export const customApiService = {
     }
   },
 
+  // NOVO: Buscar players/episódios do filme
+  async getMoviePlayers(movieId: string): Promise<Array<{ url: string; servidor: string; qualidade: string }>> {
+    try {
+      const url = `${API_BASE_URL}?v=${API_VERSION}&tipo=episodios&id=${movieId}&hwid=null`;
+      
+      console.log('🎬 Buscando players do filme ID:', movieId);
+      console.log('📡 URL:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`❌ Erro na API: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      console.log('✅ Players encontrados:', data);
+
+      if (!Array.isArray(data)) {
+        console.warn('⚠️ Resposta não é um array');
+        return [];
+      }
+
+      // Parsear os players
+      return data.map((player: any) => ({
+        url: player.url || player.link || player.player || '',
+        servidor: player.servidor || player.server || player.nome || 'Player',
+        qualidade: player.qualidade || player.quality || 'HD',
+      })).filter(p => p.url);
+    } catch (error) {
+      console.error('❌ Erro ao buscar players:', error);
+      return [];
+    }
+  },
+
   // Buscar filmes (pesquisa)
   async searchMovies(query: string, page: number = 1): Promise<{ results: CustomMovie[]; total_pages: number }> {
     try {
@@ -181,20 +227,19 @@ export const customApiService = {
     console.log(`📦 Parseando ${data.length} filmes`);
 
     return data.map((movie: any, index: number) => {
-      // A API retorna: id, nome, imagem, imagem_original, tipo, temporadas, total_filme, versao_config
       const parsed = {
         id: movie.id || `movie-${index}`,
         titulo: movie.nome || movie.titulo || movie.title || 'Sem título',
-        ano: movie.ano || movie.year || '2024', // A API não retorna ano, usar padrão
+        ano: movie.ano || movie.year || '2024',
         genero: this.parseGenres(movie.genero || movie.categoria || movie.tipo || 'Ação'),
-        nota: this.parseRating(movie.nota || movie.rating || 7.5), // Nota padrão
+        nota: this.parseRating(movie.nota || movie.rating || 7.5),
         duracao: movie.duracao || movie.duration || '2h',
         imagem: movie.imagem_original || movie.imagem || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
         imagemFundo: movie.imagem_original || movie.imagem,
         descricao: movie.descricao || movie.sinopse || movie.description || 'Sem descrição disponível',
         diretor: movie.diretor || movie.director || 'N/A',
         elenco: this.parseCast(movie.elenco || movie.cast),
-        link: movie.link || movie.url,
+        link: movie.link || movie.url || movie.player,
         qualidade: movie.qualidade || movie.quality || 'HD',
         idioma: movie.tipo || movie.idioma || 'DUB',
       };
@@ -242,7 +287,7 @@ export const customApiService = {
     if (typeof genres === 'string') {
       return genres.split(',').map(g => g.trim()).filter(Boolean);
     }
-    return ['Ação']; // Gênero padrão
+    return ['Ação'];
   },
 
   // Parsear nota
@@ -279,6 +324,7 @@ export const customApiService = {
       link: customMovie.link,
       quality: customMovie.qualidade,
       language: customMovie.idioma,
+      players: customMovie.players,
     };
   },
 };
