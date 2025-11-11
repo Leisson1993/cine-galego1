@@ -1,4 +1,8 @@
-const API_BASE_URL = 'http://appservidor.erremepe.com:80/ajax/appv/appv2_2_0_10.php';
+// Usar proxy local em desenvolvimento, URL direta em produção
+const API_BASE_URL = import.meta.env.DEV 
+  ? '/api/appv2_2_0_10.php'
+  : 'http://appservidor.erremepe.com:80/ajax/appv/appv2_2_0_10.php';
+
 const API_VERSION = '9.9.95';
 
 export interface CustomMovie {
@@ -53,10 +57,22 @@ export const customApiService = {
       
       console.log('Buscando filmes da categoria:', category.name, 'URL:', url);
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
       
       if (!response.ok) {
-        throw new Error(`Erro na API: ${response.status}`);
+        throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Resposta não é JSON:', text);
+        throw new Error('A API não retornou JSON válido');
       }
 
       const data = await response.json();
@@ -94,7 +110,12 @@ export const customApiService = {
       
       console.log('Buscando detalhes do filme:', movieId, 'URL:', url);
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
       
       if (!response.ok) {
         throw new Error(`Erro na API: ${response.status}`);
@@ -118,7 +139,12 @@ export const customApiService = {
       
       console.log('Buscando filmes:', query, 'URL:', url);
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
       
       if (!response.ok) {
         throw new Error(`Erro na API: ${response.status}`);
