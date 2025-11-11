@@ -2,9 +2,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useCustomMovies } from "@/hooks/use-custom-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, ExternalLink } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, ExternalLink, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -35,10 +36,38 @@ const MovieDetails = () => {
 
   if (error || !movie) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Filme não encontrado</h1>
-          <Button onClick={() => navigate("/")}>Voltar para Home</Button>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Filme não encontrado</AlertTitle>
+            <AlertDescription>
+              Não foi possível carregar os detalhes deste filme. Ele pode ter sido removido ou o ID está incorreto.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="flex flex-col gap-3">
+            <Button onClick={() => navigate("/home")} className="w-full">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar para Home
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.reload()}
+              className="w-full"
+            >
+              Tentar Novamente
+            </Button>
+          </div>
+          
+          {error && (
+            <Alert>
+              <AlertDescription className="text-xs">
+                <strong>Erro técnico:</strong> {error.message || 'Erro desconhecido'}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </div>
     );
@@ -60,7 +89,7 @@ const MovieDetails = () => {
         <Button
           variant="ghost"
           className="absolute top-4 left-4 z-10"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/home")}
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
           Voltar
@@ -104,14 +133,18 @@ const MovieDetails = () => {
             <div>
               <h1 className="text-4xl font-bold mb-4">{movie.title}</h1>
               <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold">{movie.rating}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-5 h-5" />
-                  <span>{movie.year}</span>
-                </div>
+                {movie.rating > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                    <span className="font-semibold">{movie.rating}</span>
+                  </div>
+                )}
+                {movie.year && movie.year !== 'N/A' && (
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-5 h-5" />
+                    <span>{movie.year}</span>
+                  </div>
+                )}
                 {movie.duration && movie.duration !== 'N/A' && (
                   <div className="flex items-center gap-1">
                     <Clock className="w-5 h-5" />
@@ -136,7 +169,7 @@ const MovieDetails = () => {
             )}
 
             {/* Botão de Assistir */}
-            {movie.link && (
+            {movie.link ? (
               <Card className="border-2 border-primary/20">
                 <CardContent className="p-6">
                   <Button
@@ -153,6 +186,13 @@ const MovieDetails = () => {
                   </p>
                 </CardContent>
               </Card>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Link de streaming não disponível para este filme no momento.
+                </AlertDescription>
+              </Alert>
             )}
 
             {/* Sinopse e Detalhes */}

@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customApiService, customCategories } from "@/services/custom-api";
 
 export const useCustomMovies = () => {
+  const queryClient = useQueryClient();
+
   // Buscar todos os filmes
   const useAllMovies = (page: number = 1) => {
     return useQuery({
@@ -40,13 +42,41 @@ export const useCustomMovies = () => {
     });
   };
 
-  // Buscar detalhes do filme
+  // Buscar detalhes do filme - NOVO: busca no cache primeiro
   const useMovieDetails = (movieId: string) => {
     return useQuery({
       queryKey: ['custom-movie', 'details', movieId],
-      queryFn: () => customApiService.getMovieById(movieId),
+      queryFn: async () => {
+        console.log('🔍 Buscando filme ID:', movieId);
+        
+        // Primeiro, tentar encontrar o filme no cache das listagens
+        const allMoviesCache = queryClient.getQueriesData({ queryKey: ['custom-movies'] });
+        
+        for (const [, data] of allMoviesCache) {
+          if (data && typeof data === 'object' && 'results' in data) {
+            const cachedData = data as { results: any[] };
+            const foundMovie = cachedData.results.find((m: any) => m.id === movieId);
+            
+            if (foundMovie) {
+              console.log('✅ Filme encontrado no cache:', foundMovie);
+              return foundMovie;
+            }
+          }
+        }
+        
+        // Se não encontrou no cache, tentar buscar na API
+        console.log('⚠️ Filme não encontrado no cache, buscando na API...');
+        const apiResult = await customApiService.getMovieById(movieId);
+        
+        if (apiResult) {
+          return customApiService.convertToLocalMovie(apiResult);
+        }
+        
+        console.error('❌ Filme não encontrado na API');
+        return null;
+      },
       enabled: !!movieId,
-      select: (data) => data ? customApiService.convertToLocalMovie(data) : null,
+      staleTime: 1000 * 60 * 5, // 5 minutos
     });
   };
 
