@@ -100,9 +100,9 @@ export const customApiService = {
   // Buscar filme por ID
   async getMovieById(movieId: string): Promise<CustomMovie | null> {
     try {
-      const url = `${API_BASE_URL}?v=${API_VERSION}&tipo=detalhes&id=${movieId}&hwid=null`;
+      const url = `${API_BASE_URL}?v=${API_VERSION}&tipo=filme&id=${movieId}&hwid=null`;
       
-      console.log('🔍 Buscando detalhes do filme:', movieId);
+      console.log('🔍 Buscando detalhes do filme ID:', movieId);
       console.log('📡 URL:', url);
       
       const response = await fetch(url, {
@@ -113,6 +113,7 @@ export const customApiService = {
       });
       
       if (!response.ok) {
+        console.error(`❌ Erro na API: ${response.status}`);
         throw new Error(`Erro na API: ${response.status}`);
       }
 
@@ -120,7 +121,15 @@ export const customApiService = {
       
       console.log('✅ Detalhes do filme:', data);
 
-      return this.parseMovieDetails(data);
+      // Se a API retornar um array, pegar o primeiro item
+      const movieData = Array.isArray(data) ? data[0] : data;
+      
+      if (!movieData) {
+        console.error('❌ Nenhum dado retornado para o filme');
+        return null;
+      }
+
+      return this.parseMovieDetails(movieData);
     } catch (error) {
       console.error('❌ Erro ao buscar detalhes do filme:', error);
       return null;
@@ -197,27 +206,32 @@ export const customApiService = {
 
   // Parsear detalhes do filme
   parseMovieDetails(data: any): CustomMovie | null {
-    if (!data) return null;
+    if (!data) {
+      console.error('❌ Dados do filme estão vazios');
+      return null;
+    }
 
-    // Se for um array, pegar o primeiro item
-    const movieData = Array.isArray(data) ? data[0] : data;
+    console.log('🔄 Parseando detalhes do filme:', data);
 
-    return {
-      id: movieData.id || 'unknown',
-      titulo: movieData.nome || movieData.titulo || movieData.title || 'Sem título',
-      ano: movieData.ano || movieData.year || '2024',
-      genero: this.parseGenres(movieData.genero || movieData.categoria || movieData.tipo || 'Ação'),
-      nota: this.parseRating(movieData.nota || movieData.rating || 7.5),
-      duracao: movieData.duracao || movieData.duration || '2h',
-      imagem: movieData.imagem_original || movieData.imagem || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
-      imagemFundo: movieData.imagem_original || movieData.imagem,
-      descricao: movieData.descricao || movieData.sinopse || movieData.description || 'Sem descrição disponível',
-      diretor: movieData.diretor || movieData.director || 'N/A',
-      elenco: this.parseCast(movieData.elenco || movieData.cast),
-      link: movieData.link || movieData.url,
-      qualidade: movieData.qualidade || movieData.quality || 'HD',
-      idioma: movieData.tipo || movieData.idioma || 'DUB',
+    const parsed = {
+      id: data.id || 'unknown',
+      titulo: data.nome || data.titulo || data.title || 'Sem título',
+      ano: data.ano || data.year || '2024',
+      genero: this.parseGenres(data.genero || data.categoria || data.tipo || 'Ação'),
+      nota: this.parseRating(data.nota || data.rating || data.imdb || 7.5),
+      duracao: data.duracao || data.duration || data.runtime || '2h',
+      imagem: data.imagem_original || data.imagem || data.poster || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+      imagemFundo: data.imagem_original || data.imagem || data.backdrop,
+      descricao: data.descricao || data.sinopse || data.description || data.overview || 'Sem descrição disponível',
+      diretor: data.diretor || data.director || 'N/A',
+      elenco: this.parseCast(data.elenco || data.cast || data.actors),
+      link: data.link || data.url || data.player,
+      qualidade: data.qualidade || data.quality || 'HD',
+      idioma: data.tipo || data.idioma || data.language || 'DUB',
     };
+
+    console.log('✅ Detalhes parseados:', parsed);
+    return parsed;
   },
 
   // Parsear gêneros
