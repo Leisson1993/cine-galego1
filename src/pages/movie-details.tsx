@@ -18,29 +18,61 @@ const MovieDetails = () => {
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
-  // Adicionar meta tag de referrer quando o componente montar
+  // Bloquear popups e novas abas
   useEffect(() => {
     const metaReferrer = document.createElement('meta');
     metaReferrer.name = 'referrer';
     metaReferrer.content = 'no-referrer';
     document.head.appendChild(metaReferrer);
 
+    // Bloquear window.open
+    const originalOpen = window.open;
+    window.open = function() {
+      console.log('Popup bloqueado!');
+      return null;
+    };
+
     return () => {
       document.head.removeChild(metaReferrer);
+      window.open = originalOpen;
     };
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setPlayerKey(prev => prev + 1);
   };
 
-  const handleServerChange = (index: number) => {
+  const handleServerChange = (index: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setCurrentServerIndex(index);
     setShowPlayer(false);
     setTimeout(() => {
       setShowPlayer(true);
       setPlayerKey(prev => prev + 1);
     }, 100);
+  };
+
+  const handleClosePlayer = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setShowPlayer(false);
+  };
+
+  const handlePlayClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setShowPlayer(true);
   };
 
   const currentLink = movie?.alternativeLinks?.[currentServerIndex] || movie?.link;
@@ -200,9 +232,9 @@ const MovieDetails = () => {
                           src={currentLink}
                           className="absolute top-0 left-0 w-full h-full"
                           allowFullScreen
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           referrerPolicy="origin"
-                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
+                          sandbox="allow-same-origin allow-scripts allow-forms allow-presentation"
                           title={movie.title}
                         />
                       </div>
@@ -220,11 +252,11 @@ const MovieDetails = () => {
                                 key={index}
                                 variant={currentServerIndex === index ? "default" : "outline"}
                                 size="sm"
-                                onClick={(e) => {
+                                onMouseDown={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  handleServerChange(index);
                                 }}
+                                onClick={(e) => handleServerChange(index, e)}
                                 type="button"
                               >
                                 Servidor {index + 1}
@@ -238,11 +270,11 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={(e) => {
+                          onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            handleRefresh();
                           }}
+                          onClick={handleRefresh}
                           className="flex-1"
                           type="button"
                         >
@@ -252,11 +284,11 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={(e) => {
+                          onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setShowPlayer(false);
                           }}
+                          onClick={handleClosePlayer}
                           className="flex-1"
                           type="button"
                         >
@@ -273,11 +305,11 @@ const MovieDetails = () => {
                     <Button
                       size="lg"
                       className="w-full"
-                      onClick={(e) => {
+                      onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setShowPlayer(true);
                       }}
+                      onClick={handlePlayClick}
                       type="button"
                     >
                       <Play className="w-5 h-5 mr-2" />
