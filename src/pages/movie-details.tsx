@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2, RefreshCw, Server } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, RefreshCw, Server } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -36,7 +36,11 @@ const MovieDetails = () => {
 
   const handleServerChange = (index: number) => {
     setCurrentServerIndex(index);
-    setPlayerKey(prev => prev + 1);
+    setShowPlayer(false);
+    setTimeout(() => {
+      setShowPlayer(true);
+      setPlayerKey(prev => prev + 1);
+    }, 100);
   };
 
   const currentLink = movie?.alternativeLinks?.[currentServerIndex] || movie?.link;
@@ -198,7 +202,7 @@ const MovieDetails = () => {
                           allowFullScreen
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                           referrerPolicy="origin"
-                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation allow-popups-to-escape-sandbox"
+                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
                           title={movie.title}
                         />
                       </div>
@@ -216,7 +220,12 @@ const MovieDetails = () => {
                                 key={index}
                                 variant={currentServerIndex === index ? "default" : "outline"}
                                 size="sm"
-                                onClick={() => handleServerChange(index)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleServerChange(index);
+                                }}
+                                type="button"
                               >
                                 Servidor {index + 1}
                               </Button>
@@ -229,8 +238,13 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={handleRefresh}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRefresh();
+                          }}
                           className="flex-1"
+                          type="button"
                         >
                           <RefreshCw className="w-4 h-4 mr-2" />
                           Recarregar
@@ -238,8 +252,13 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setShowPlayer(false)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowPlayer(false);
+                          }}
                           className="flex-1"
+                          type="button"
                         >
                           Fechar
                         </Button>
@@ -254,7 +273,12 @@ const MovieDetails = () => {
                     <Button
                       size="lg"
                       className="w-full"
-                      onClick={() => setShowPlayer(true)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowPlayer(true);
+                      }}
+                      type="button"
                     >
                       <Play className="w-5 h-5 mr-2" />
                       Assistir Agora
