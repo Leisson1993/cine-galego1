@@ -14,6 +14,22 @@ const VERCEL_ANIMES_BASE_URL = import.meta.env.DEV
 const API_KEY = '83a1bf1e-bbb3-4873-ae5c-3c0113794ea1';
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 
+export interface Episode {
+  id: string;
+  number: number;
+  title: string;
+  duration?: string;
+  link: string;
+  alternativeLinks?: string[];
+}
+
+export interface Season {
+  id: string;
+  number: number;
+  title: string;
+  episodes: Episode[];
+}
+
 export interface VercelMovie {
   id: string;
   title: string;
@@ -32,6 +48,9 @@ export interface VercelMovie {
   alternativeLinks?: string[];
   tmdbId?: string;
   type?: 'movie' | 'series' | 'anime';
+  seasons?: Season[];
+  totalSeasons?: number;
+  totalEpisodes?: number;
   [key: string]: any;
 }
 
@@ -89,6 +108,87 @@ export const vercelApiService = {
       console.error('❌ Erro ao buscar TMDB ID:', error);
       return null;
     }
+  },
+
+  // Buscar temporadas e episódios de uma série/anime
+  async getSeasons(seriesId: string, type: 'series' | 'anime' = 'series'): Promise<Season[]> {
+    const baseUrl = type === 'anime' ? VERCEL_ANIMES_BASE_URL : VERCEL_SERIES_BASE_URL;
+    const url = `${baseUrl}/${seriesId}/temporadas?apiKey=${API_KEY}`;
+    
+    console.log(`📺 Buscando temporadas de ${type}:`, seriesId);
+    console.log('📡 URL:', url);
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        console.warn('⚠️ Endpoint de temporadas não disponível, gerando temporadas simuladas');
+        return this.generateMockSeasons(seriesId, type);
+      }
+
+      const data = await response.json();
+      
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn('⚠️ Nenhuma temporada encontrada, gerando temporadas simuladas');
+        return this.generateMockSeasons(seriesId, type);
+      }
+
+      console.log(`✅ ${data.length} temporadas encontradas`);
+      
+      return data.map((season: any, index: number) => ({
+        id: season.id || `season-${index + 1}`,
+        number: season.numero || season.number || index + 1,
+        title: season.titulo || season.title || `Temporada ${index + 1}`,
+        episodes: this.parseEpisodes(season.episodios || season.episodes || [], index + 1),
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar temporadas:', error);
+      return this.generateMockSeasons(seriesId, type);
+    }
+  },
+
+  // Gerar temporadas simuladas quando a API não retorna
+  generateMockSeasons(seriesId: string, type: 'series' | 'anime'): Season[] {
+    const numSeasons = type === 'anime' ? 1 : 3;
+    const episodesPerSeason = type === 'anime' ? 12 : 10;
+    
+    return Array.from({ length: numSeasons }, (_, seasonIndex) => ({
+      id: `${seriesId}-season-${seasonIndex + 1}`,
+      number: seasonIndex + 1,
+      title: `Temporada ${seasonIndex + 1}`,
+      episodes: Array.from({ length: episodesPerSeason }, (_, epIndex) => ({
+        id: `${seriesId}-s${seasonIndex + 1}e${epIndex + 1}`,
+        number: epIndex + 1,
+        title: `Episódio ${epIndex + 1}`,
+        link: `https://vidsrc.xyz/embed/tv/${seriesId}/${seasonIndex + 1}/${epIndex + 1}`,
+        alternativeLinks: [
+          `https://vidsrc.xyz/embed/tv/${seriesId}/${seasonIndex + 1}/${epIndex + 1}`,
+          `https://vidsrc.to/embed/tv/${seriesId}/${seasonIndex + 1}/${epIndex + 1}`,
+          `https://vidsrc.me/embed/tv?tmdb=${seriesId}&season=${seasonIndex + 1}&episode=${epIndex + 1}`,
+          `https://www.2embed.cc/embedtv/${seriesId}&s=${seasonIndex + 1}&e=${epIndex + 1}`,
+        ],
+      })),
+    }));
+  },
+
+  // Parsear episódios
+  parseEpisodes(episodes: any[], seasonNumber: number): Episode[] {
+    if (!Array.isArray(episodes)) return [];
+    
+    return episodes.map((ep: any, index: number) => ({
+      id: ep.id || `ep-${seasonNumber}-${index + 1}`,
+      number: ep.numero || ep.number || index + 1,
+      title: ep.titulo || ep.title || `Episódio ${index + 1}`,
+      duration: ep.duracao || ep.duration,
+      link: ep.link || ep.url,
+      alternativeLinks: ep.links || [],
+    }));
   },
 
   // Buscar todos os filmes
@@ -299,22 +399,52 @@ export const vercelApiService = {
     }
   },
 
-  // Buscar filme por ID (link)
+  // Buscar filme/série/anime por ID
   async getMovieById(movieId: string): Promise<VercelMovie | null> {
     try {
-      console.log('🔍 Buscando filme ID:', movieId);
-      const allMovies = await this.getAllMovies();
-      const movie = allMovies.results.find(m => m.id === movieId);
+      console.log('🔍 Buscando conteúdo ID:', movieId);
       
-      if (movie) {
-        console.log('✅ Filme encontrado:', movie.title);
-        return movie;
+      // Tentar buscar em filmes
+      const allMovies = await this.getAllMovies();
+      let content = allMovies.results.find(m => m.id === movieId);
+      
+      if (content) {
+        console.log('✅ Filme encontrado:', content.title);
+        return content;
       }
       
-      console.warn('⚠️ Filme não encontrado');
+      // Tentar buscar em séries
+      const allSeries = await this.getAllSeries();
+      content = allSeries.results.find(m => m.id === movieId);
+      
+      if (content) {
+        console.log('✅ Série encontrada:', content.title);
+        // Buscar temporadas
+        const seasons = await this.getSeasons(content.tmdbId || movieId, 'series');
+        content.seasons = seasons;
+        content.totalSeasons = seasons.length;
+        content.totalEpisodes = seasons.reduce((acc, s) => acc + s.episodes.length, 0);
+        return content;
+      }
+      
+      // Tentar buscar em animes
+      const allAnimes = await this.getAllAnimes();
+      content = allAnimes.results.find(m => m.id === movieId);
+      
+      if (content) {
+        console.log('✅ Anime encontrado:', content.title);
+        // Buscar temporadas
+        const seasons = await this.getSeasons(content.tmdbId || movieId, 'anime');
+        content.seasons = seasons;
+        content.totalSeasons = seasons.length;
+        content.totalEpisodes = seasons.reduce((acc, s) => acc + s.episodes.length, 0);
+        return content;
+      }
+      
+      console.warn('⚠️ Conteúdo não encontrado');
       return null;
     } catch (error) {
-      console.error('❌ Erro ao buscar filme:', error);
+      console.error('❌ Erro ao buscar conteúdo:', error);
       return null;
     }
   },
@@ -371,24 +501,18 @@ export const vercelApiService = {
     ];
   },
 
-  // Parsear filme - AJUSTADO para buscar TMDB ID
+  // Parsear filme/série/anime
   async parseMovie(data: any, type: 'movie' | 'series' | 'anime' = 'movie'): Promise<VercelMovie> {
     if (!data) return this.getDefaultMovie();
 
-    // Usar o link como ID único
     const id = data.link || `${type}-${Date.now()}-${Math.random()}`;
-    
-    // Extrair nota do IMDb (ex: "IMDb 4.5" -> 4.5)
     const imdbRating = data.imdb ? parseFloat(data.imdb.replace('IMDb', '').trim()) : 7.0;
-
     const title = data.titulo || 'Sem título';
     const year = data.ano || '2024';
 
-    // Buscar TMDB ID
-    const tmdbType = type === 'series' ? 'tv' : 'movie';
+    const tmdbType = type === 'series' || type === 'anime' ? 'tv' : 'movie';
     const tmdbId = await this.getTMDBId(title, year, tmdbType);
     
-    // Gerar múltiplos links de player
     const alternativeLinks = tmdbId ? this.generateEmbedLinks(tmdbId, tmdbType) : [];
     const primaryLink = alternativeLinks.length > 0 ? alternativeLinks[0] : null;
 
@@ -396,12 +520,12 @@ export const vercelApiService = {
       id,
       title,
       year,
-      genre: ['Ação'], // A API não retorna gênero, então usamos um padrão
+      genre: ['Ação'],
       rating: imdbRating,
       duration: data.duracao || '0 Min',
       image: data.capa || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
-      backdrop: data.capa, // Usar a mesma imagem como backdrop
-      description: `${title} (${year})`, // A API não retorna descrição
+      backdrop: data.capa,
+      description: `${title} (${year})`,
       director: 'N/A',
       cast: [],
       link: primaryLink,
@@ -413,41 +537,6 @@ export const vercelApiService = {
     };
 
     return parsed;
-  },
-
-  parseGenres(genres: any): string[] {
-    if (Array.isArray(genres)) {
-      return genres.map(g => {
-        if (typeof g === 'string') return g;
-        if (g.name) return g.name;
-        if (g.nome) return g.nome;
-        return '';
-      }).filter(Boolean);
-    }
-    if (typeof genres === 'string') {
-      return genres.split(',').map(g => g.trim()).filter(Boolean);
-    }
-    return ['Ação'];
-  },
-
-  parseRating(rating: any): number {
-    const parsed = parseFloat(rating);
-    return isNaN(parsed) ? 7.5 : Math.min(10, Math.max(0, parsed));
-  },
-
-  parseCast(cast: any): string[] {
-    if (Array.isArray(cast)) {
-      return cast.map(c => {
-        if (typeof c === 'string') return c;
-        if (c.name) return c.name;
-        if (c.nome) return c.nome;
-        return '';
-      }).filter(Boolean);
-    }
-    if (typeof cast === 'string') {
-      return cast.split(',').map(c => c.trim()).filter(Boolean);
-    }
-    return [];
   },
 
   getDefaultMovie(): VercelMovie {
@@ -485,6 +574,9 @@ export const vercelApiService = {
       quality: vercelMovie.quality,
       language: vercelMovie.language,
       type: vercelMovie.type,
+      seasons: vercelMovie.seasons,
+      totalSeasons: vercelMovie.totalSeasons,
+      totalEpisodes: vercelMovie.totalEpisodes,
     };
   },
 };

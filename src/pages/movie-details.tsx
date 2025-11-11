@@ -6,7 +6,9 @@ import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, RefreshCw, Server 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SeasonSelector } from "@/components/season-selector";
 import { useState, useEffect, useRef } from "react";
+import type { Episode } from "@/types/movie";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -16,52 +18,31 @@ const MovieDetails = () => {
   const [playerKey, setPlayerKey] = useState(0);
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [selectedEpisode, setSelectedEpisode] = useState<{ episode: Episode; seasonNumber: number } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
-  // Bloquear popups e novas abas de forma mais agressiva
+  const isSeries = movie?.type === 'series' || movie?.type === 'anime';
+  const hasSeasons = isSeries && movie?.seasons && movie.seasons.length > 0;
+
+  // Bloquear popups
   useEffect(() => {
-    // Meta tags de segurança
     const metaReferrer = document.createElement('meta');
     metaReferrer.name = 'referrer';
     metaReferrer.content = 'no-referrer';
     document.head.appendChild(metaReferrer);
 
-    // Bloquear window.open completamente
     const originalOpen = window.open;
-    const originalCreateElement = document.createElement;
     
     window.open = function(...args) {
       console.log('🚫 Popup bloqueado!', args);
       return null;
     };
 
-    // Bloquear criação de elementos <a> com target="_blank"
-    document.createElement = function(tagName: string) {
-      const element = originalCreateElement.call(document, tagName);
-      if (tagName.toLowerCase() === 'a') {
-        const anchor = element as HTMLAnchorElement;
-        Object.defineProperty(anchor, 'target', {
-          set: function(value) {
-            if (value === '_blank') {
-              console.log('🚫 Link com target="_blank" bloqueado');
-              return;
-            }
-          },
-          get: function() {
-            return '_self';
-          }
-        });
-      }
-      return element;
-    };
-
-    // Interceptar todos os cliques
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-      // Bloquear links com target="_blank"
       if (target.tagName === 'A') {
         const link = target as HTMLAnchorElement;
         if (link.target === '_blank' || link.href.includes('http')) {
@@ -74,19 +55,8 @@ const MovieDetails = () => {
       }
     };
 
-    // Bloquear eventos de abertura de janela
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!hasInteracted) {
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-      }
-    };
-
     document.addEventListener('click', handleClick, true);
-    window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Bloquear popups a cada 100ms
     const popupBlocker = setInterval(() => {
       window.open = function() {
         console.log('🚫 Popup bloqueado (interval)');
@@ -97,50 +67,10 @@ const MovieDetails = () => {
     return () => {
       document.head.removeChild(metaReferrer);
       window.open = originalOpen;
-      document.createElement = originalCreateElement;
       document.removeEventListener('click', handleClick, true);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       clearInterval(popupBlocker);
     };
-  }, [hasInteracted]);
-
-  // Monitorar iframe e bloquear popups dele
-  useEffect(() => {
-    if (iframeRef.current && showPlayer) {
-      const iframe = iframeRef.current;
-      
-      const handleLoad = () => {
-        try {
-          if (iframe.contentWindow) {
-            const iframeWindow = iframe.contentWindow as any;
-            
-            // Bloquear window.open do iframe
-            iframeWindow.open = function() {
-              console.log('🚫 Popup do iframe bloqueado!');
-              return null;
-            };
-
-            // Bloquear eventos de clique no iframe
-            iframeWindow.addEventListener('click', (e: any) => {
-              if (e.target.tagName === 'A' && e.target.target === '_blank') {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('🚫 Link do iframe bloqueado');
-              }
-            }, true);
-          }
-        } catch (e) {
-          console.log('⚠️ CORS impediu acesso ao iframe');
-        }
-      };
-
-      iframe.addEventListener('load', handleLoad);
-      
-      return () => {
-        iframe.removeEventListener('load', handleLoad);
-      };
-    }
-  }, [showPlayer, playerKey]);
+  }, []);
 
   const handleRefresh = (e?: React.MouseEvent) => {
     if (e) {
@@ -183,7 +113,26 @@ const MovieDetails = () => {
     setShowPlayer(true);
   };
 
-  const currentLink = movie?.alternativeLinks?.[currentServerIndex] || movie?.link;
+  const handleEpisodeSelect = (episode: Episode, seasonNumber: number) => {
+    setSelectedEpisode({ episode, seasonNumber });
+    setCurrentServerIndex(0);
+    setShowPlayer(true);
+    setPlayerKey(prev => prev + 1);
+  };
+
+  // Determinar qual link usar
+  let currentLink: string | null = null;
+  let availableLinks: string[] = [];
+
+  if (isSeries && selectedEpisode) {
+    // Usar link do episódio selecionado
+    currentLink = selectedEpisode.episode.alternativeLinks?.[currentServerIndex] || selectedEpisode.episode.link;
+    availableLinks = selectedEpisode.episode.alternativeLinks || [selectedEpisode.episode.link];
+  } else if (!isSeries) {
+    // Usar link do filme
+    currentLink = movie?.alternativeLinks?.[currentServerIndex] || movie?.link || null;
+    availableLinks = movie?.alternativeLinks || (movie?.link ? [movie.link] : []);
+  }
 
   if (isLoading) {
     return (
@@ -211,9 +160,9 @@ const MovieDetails = () => {
         <div className="max-w-md w-full space-y-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Filme não encontrado</AlertTitle>
+            <AlertTitle>Conteúdo não encontrado</AlertTitle>
             <AlertDescription>
-              Não foi possível carregar os detalhes deste filme.
+              Não foi possível carregar os detalhes deste conteúdo.
             </AlertDescription>
           </Alert>
           
@@ -246,7 +195,7 @@ const MovieDetails = () => {
         <Button
           variant="ghost"
           className="absolute top-4 left-4 z-10"
-          onClick={() => navigate("/home")}
+          onClick={() => navigate(-1)}
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
           Voltar
@@ -271,6 +220,14 @@ const MovieDetails = () => {
             {/* Informações Extras */}
             <Card>
               <CardContent className="p-4 space-y-3">
+                {movie.type && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-1">Tipo</h4>
+                    <Badge variant="secondary">
+                      {movie.type === 'movie' ? 'Filme' : movie.type === 'series' ? 'Série' : 'Anime'}
+                    </Badge>
+                  </div>
+                )}
                 {movie.quality && (
                   <div>
                     <h4 className="font-semibold text-sm mb-1">Qualidade</h4>
@@ -283,13 +240,25 @@ const MovieDetails = () => {
                     <Badge variant="secondary">{movie.language}</Badge>
                   </div>
                 )}
+                {hasSeasons && (
+                  <>
+                    <div>
+                      <h4 className="font-semibold text-sm mb-1">Temporadas</h4>
+                      <Badge variant="secondary">{movie.totalSeasons}</Badge>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-sm mb-1">Episódios</h4>
+                      <Badge variant="secondary">{movie.totalEpisodes}</Badge>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
 
           {/* Coluna Direita - Informações e Player */}
           <div className="space-y-6">
-            {/* Informações do Filme */}
+            {/* Informações */}
             <div>
               <h1 className="text-4xl font-bold mb-4">{movie.title}</h1>
               <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
@@ -305,7 +274,7 @@ const MovieDetails = () => {
                     <span>{movie.year}</span>
                   </div>
                 )}
-                {movie.duration && movie.duration !== 'N/A' && (
+                {movie.duration && movie.duration !== 'N/A' && !isSeries && (
                   <div className="flex items-center gap-1">
                     <Clock className="w-5 h-5" />
                     <span>{movie.duration}</span>
@@ -328,7 +297,23 @@ const MovieDetails = () => {
               </div>
             )}
 
-            {/* Player Embutido ou Botão */}
+            {/* Seletor de Temporadas e Episódios */}
+            {hasSeasons && (
+              <SeasonSelector
+                seasons={movie.seasons!}
+                onEpisodeSelect={handleEpisodeSelect}
+                selectedEpisode={
+                  selectedEpisode
+                    ? {
+                        seasonNumber: selectedEpisode.seasonNumber,
+                        episodeNumber: selectedEpisode.episode.number,
+                      }
+                    : undefined
+                }
+              />
+            )}
+
+            {/* Player */}
             {currentLink ? (
               <Card className="border-2 border-primary/20">
                 <CardContent className="p-6 space-y-4">
@@ -348,22 +333,18 @@ const MovieDetails = () => {
                       </div>
                       
                       {/* Seletor de Servidores */}
-                      {movie.alternativeLinks && movie.alternativeLinks.length > 1 && (
+                      {availableLinks.length > 1 && (
                         <div>
                           <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
                             <Server className="w-4 h-4" />
                             Servidores Disponíveis
                           </h4>
                           <div className="grid grid-cols-3 gap-2">
-                            {movie.alternativeLinks.map((_, index) => (
+                            {availableLinks.map((_, index) => (
                               <Button
                                 key={index}
                                 variant={currentServerIndex === index ? "default" : "outline"}
                                 size="sm"
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
                                 onClick={(e) => handleServerChange(index, e)}
                                 type="button"
                               >
@@ -378,10 +359,6 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
                           onClick={handleRefresh}
                           className="flex-1"
                           type="button"
@@ -392,10 +369,6 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
                           onClick={handleClosePlayer}
                           className="flex-1"
                           type="button"
@@ -405,37 +378,43 @@ const MovieDetails = () => {
                       </div>
                       <Alert>
                         <AlertDescription className="text-xs">
-                          💡 <strong>Dica:</strong> Se aparecer um popup, feche-o e clique novamente. O vídeo vai carregar. Recomendamos usar um bloqueador de popups no navegador.
+                          💡 <strong>Dica:</strong> Se aparecer um popup, feche-o e clique novamente. O vídeo vai carregar.
                         </AlertDescription>
                       </Alert>
                     </>
                   ) : (
-                    <Button
-                      size="lg"
-                      className="w-full"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      onClick={handlePlayClick}
-                      type="button"
-                    >
-                      <Play className="w-5 h-5 mr-2" />
-                      Assistir Agora
-                    </Button>
+                    <>
+                      {isSeries && !selectedEpisode ? (
+                        <Alert>
+                          <AlertDescription>
+                            Selecione uma temporada e um episódio acima para começar a assistir.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={handlePlayClick}
+                          type="button"
+                        >
+                          <Play className="w-5 h-5 mr-2" />
+                          {isSeries ? 'Assistir Episódio' : 'Assistir Agora'}
+                        </Button>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
-            ) : (
+            ) : isSeries && !selectedEpisode ? null : (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Link de streaming não disponível para este filme no momento.
+                  Link de streaming não disponível no momento.
                 </AlertDescription>
               </Alert>
             )}
 
-            {/* Sinopse e Detalhes */}
+            {/* Sinopse */}
             <Card>
               <CardContent className="p-6 space-y-4">
                 <div>
