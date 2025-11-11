@@ -1,32 +1,18 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useCustomMovies } from "@/hooks/use-custom-movies";
-import { customApiService } from "@/services/custom-api";
+import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, ExternalLink, AlertCircle, Film } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Star, Clock, Calendar, Play, ExternalLink, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useState } from "react";
 
 const MovieDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { useMovieDetails } = useCustomMovies();
+  const { useMovieDetails } = useVercelMovies();
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
-  const [players, setPlayers] = useState<Array<{ url: string; servidor: string; qualidade: string }>>([]);
-  const [loadingPlayers, setLoadingPlayers] = useState(false);
-
-  // Buscar players quando o filme carregar
-  useEffect(() => {
-    if (movie?.id) {
-      setLoadingPlayers(true);
-      customApiService.getMoviePlayers(movie.id)
-        .then(setPlayers)
-        .finally(() => setLoadingPlayers(false));
-    }
-  }, [movie?.id]);
 
   if (isLoading) {
     return (
@@ -71,8 +57,6 @@ const MovieDetails = () => {
 
   const backdropUrl = movie.backdrop || movie.image;
   const posterUrl = movie.image;
-  const hasPlayers = players.length > 0;
-  const hasLink = movie.link || hasPlayers;
 
   return (
     <div className="min-h-screen bg-background">
@@ -166,41 +150,8 @@ const MovieDetails = () => {
               </div>
             )}
 
-            {/* Players Disponíveis */}
-            {loadingPlayers ? (
-              <Card>
-                <CardContent className="p-6">
-                  <Skeleton className="h-12 w-full" />
-                </CardContent>
-              </Card>
-            ) : hasPlayers ? (
-              <Card className="border-2 border-primary/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Play className="w-5 h-5" />
-                    Assistir Agora ({players.length} {players.length === 1 ? 'servidor' : 'servidores'})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {players.map((player, index) => (
-                    <Button
-                      key={index}
-                      size="lg"
-                      variant={index === 0 ? "default" : "outline"}
-                      className="w-full justify-start"
-                      onClick={() => window.open(player.url, '_blank')}
-                    >
-                      <Film className="w-5 h-5 mr-2" />
-                      {player.servidor}
-                      <Badge variant="secondary" className="ml-auto">
-                        {player.qualidade}
-                      </Badge>
-                      <ExternalLink className="w-4 h-4 ml-2" />
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-            ) : movie.link ? (
+            {/* Botão de Assistir */}
+            {movie.link ? (
               <Card className="border-2 border-primary/20">
                 <CardContent className="p-6">
                   <Button
@@ -212,6 +163,9 @@ const MovieDetails = () => {
                     Assistir Agora
                     <ExternalLink className="w-4 h-4 ml-2" />
                   </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-3">
+                    Clique para assistir em uma nova aba
+                  </p>
                 </CardContent>
               </Card>
             ) : (

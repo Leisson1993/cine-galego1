@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Header } from "@/components/header";
 import { CategoryFilter } from "@/components/category-filter";
 import { MovieCard } from "@/components/movie-card";
-import { useCustomMovies } from "@/hooks/use-custom-movies";
+import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Wifi } from "lucide-react";
@@ -11,28 +11,20 @@ import { Button } from "@/components/ui/button";
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [page] = useState(1);
 
-  const { categories, useAllMovies, useMoviesByCategory, useSearchMovies } = useCustomMovies();
+  const { categories, useAllMovies, useMoviesByCategory, useSearchMovies } = useVercelMovies();
 
-  // Determinar qual API slug usar
-  const selectedCategorySlug = useMemo(() => {
-    if (selectedCategory === "all") return "";
-    const category = categories.find(c => c.slug === selectedCategory);
-    return category?.apiSlug || "";
-  }, [selectedCategory, categories]);
-
-  // Buscar filmes baseado no estado
-  const allMoviesQuery = useAllMovies(page);
-  const categoryQuery = useMoviesByCategory(selectedCategorySlug, page);
-  const searchQueryResult = useSearchMovies(searchQuery, page);
+  // Determinar qual query usar
+  const allMoviesQuery = useAllMovies();
+  const categoryQuery = useMoviesByCategory(selectedCategory);
+  const searchQueryResult = useSearchMovies(searchQuery);
 
   // Determinar qual resultado usar
   const { data, isLoading, error, refetch } = useMemo(() => {
     if (searchQuery.length > 0) return searchQueryResult;
-    if (selectedCategorySlug) return categoryQuery;
+    if (selectedCategory !== "all") return categoryQuery;
     return allMoviesQuery;
-  }, [searchQuery, selectedCategorySlug, searchQueryResult, categoryQuery, allMoviesQuery]);
+  }, [searchQuery, selectedCategory, searchQueryResult, categoryQuery, allMoviesQuery]);
 
   const movies = data?.results || [];
 
