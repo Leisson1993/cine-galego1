@@ -44,7 +44,13 @@ serve(async (req) => {
     console.log('Buscando página:', pageUrl);
 
     // Fazer requisição para a página
-    const response = await fetch(pageUrl);
+    const response = await fetch(pageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+      }
+    });
     
     if (!response.ok) {
       throw new Error(`Erro ao buscar página: ${response.status}`);
@@ -54,85 +60,47 @@ serve(async (req) => {
 
     // Extrair links de players
     const playerLinks: PlayerLink[] = [];
+    const foundUrls = new Set<string>();
 
-    // Regex para encontrar iframes
-    const iframeRegex = /<iframe[^>]+src=["']([^"']+)["']/gi;
-    let match;
+    // Regex melhorado para encontrar URLs de players
+    const patterns = [
+      // iframes
+      /<iframe[^>]+src=["']([^"']+)["']/gi,
+      // data-player
+      /data-player=["']([^"']+)["']/gi,
+      // data-src
+      /data-src=["']([^"']+)["']/gi,
+      // onclick com window.open
+      /onclick=["']window\.open\(["']([^"']+)["']/gi,
+      // URLs diretas de players conhecidos
+      /https?:\/\/[^"'\s<>]+(?:streamtape|doodstream|mixdrop|upstream|fembed|streamlare|voe|streamwish|filemoon|vidoza|embedsito)[^"'\s<>]*/gi,
+    ];
 
-    while ((match = iframeRegex.exec(html)) !== null) {
-      const url = match[1];
-      
-      if (isValidPlayerUrl(url)) {
-        playerLinks.push({
-          url: url,
-          server: detectServer(url),
-          language: 'Latino',
-          quality: 'HD',
-        });
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(html)) !== null) {
+        const url = match[1] || match[0];
+        
+        if (isValidPlayerUrl(url) && !foundUrls.has(url)) {
+          foundUrls.add(url);
+          playerLinks.push({
+            url: url,
+            server: detectServer(url),
+            language: 'Latino',
+            quality: 'HD',
+          });
+        }
       }
     }
 
-    // Regex para data-player
-    const dataPlayerRegex = /data-player=["']([^"']+)["']/gi;
-    
-    while ((match = dataPlayerRegex.exec(html)) !== null) {
-      const url = match[1];
-      
-      if (isValidPlayerUrl(url)) {
-        playerLinks.push({
-          url: url,
-          server: detectServer(url),
-          language: 'Latino',
-          quality: 'HD',
-        });
-      }
-    }
-
-    // Regex para data-src
-    const dataSrcRegex = /data-src=["']([^"']+)["']/gi;
-    
-    while ((match = dataSrcRegex.exec(html)) !== null) {
-      const url = match[1];
-      
-      if (isValidPlayerUrl(url)) {
-        playerLinks.push({
-          url: url,
-          server: detectServer(url),
-          language: 'Latino',
-          quality: 'HD',
-        });
-      }
-    }
-
-    // Regex para links em onclick
-    const onclickRegex = /onclick=["']window\.open\(["']([^"']+)["']/gi;
-    
-    while ((match = onclickRegex.exec(html)) !== null) {
-      const url = match[1];
-      
-      if (isValidPlayerUrl(url)) {
-        playerLinks.push({
-          url: url,
-          server: detectServer(url),
-          language: 'Latino',
-          quality: 'HD',
-        });
-      }
-    }
-
-    // Remover duplicatas
-    const uniqueLinks = Array.from(
-      new Map(playerLinks.map(link => [link.url, link])).values()
-    );
-
-    console.log(`Encontrados ${uniqueLinks.length} players`);
+    console.log(`Encontrados ${playerLinks.length} players`);
 
     return new Response(
       JSON.stringify({ 
         success: true,
         pageUrl,
-        players: uniqueLinks,
-        count: uniqueLinks.length
+        players: playerLinks,
+        count: playerLinks.length
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -157,6 +125,8 @@ serve(async (req) => {
 });
 
 function isValidPlayerUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  
   const validDomains = [
     'streamtape',
     'doodstream',
@@ -173,7 +143,9 @@ function isValidPlayerUrl(url: string): boolean {
     'player',
   ];
   
-  return validDomains.some(domain => url.toLowerCase().includes(domain));
+  const urlLower = url.toLowerCase();
+  return validDomains.some(domain => urlLower.includes(domain)) && 
+         (url.startsWith('http://') || url.startsWith('https://'));
 }
 
 function detectServer(url: string): string {
