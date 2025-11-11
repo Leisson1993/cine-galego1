@@ -1,7 +1,8 @@
-import { Film, Search } from "lucide-react";
+import { Film, Search, Moon, Sun } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/hooks/use-theme";
 
 interface HeaderProps {
   searchQuery: string;
@@ -11,6 +12,7 @@ interface HeaderProps {
 export const Header = ({ searchQuery, onSearchChange }: HeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   const menuItems = [
     { label: 'Top', path: '/home' },
@@ -32,7 +34,7 @@ export const Header = ({ searchQuery, onSearchChange }: HeaderProps) => {
             onClick={() => navigate("/home")}
           >
             <Film className="w-8 h-8 text-primary" />
-            <h1 className="text-2xl font-bold">CineStream</h1>
+            <h1 className="text-2xl font-bold">CINE-GALEGO</h1>
           </div>
           
           <div className="relative w-full max-w-md mx-4">
@@ -45,6 +47,19 @@ export const Header = ({ searchQuery, onSearchChange }: HeaderProps) => {
               className="pl-10"
             />
           </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="ml-2"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
         </div>
 
         {/* Menu de navegação */}
