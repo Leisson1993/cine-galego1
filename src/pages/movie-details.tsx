@@ -238,15 +238,6 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(currentLink, '_blank')}
-                          className="flex-1"
-                        >
-                          <Maximize2 className="w-4 h-4 mr-2" />
-                          Tela Cheia
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
                           onClick={() => setShowPlayer(false)}
                           className="flex-1"
                         >
@@ -255,7 +246,7 @@ const MovieDetails = () => {
                       </div>
                       <Alert>
                         <AlertDescription className="text-xs">
-                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor ou clique em "Tela Cheia".
+                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor.
                         </AlertDescription>
                       </Alert>
                     </>
