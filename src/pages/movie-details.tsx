@@ -1,21 +1,45 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useFlixyMovies } from "@/hooks/use-flixy-movies";
+import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2, RefreshCw, Server } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const MovieDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { useMovieDetails, useVideoUrl } = useFlixyMovies();
+  const { useMovieDetails } = useVercelMovies();
   const [showPlayer, setShowPlayer] = useState(false);
+  const [playerKey, setPlayerKey] = useState(0);
+  const [currentServerIndex, setCurrentServerIndex] = useState(0);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
-  const { data: videoUrl } = useVideoUrl(id || "");
+
+  // Adicionar meta tag de referrer quando o componente montar
+  useEffect(() => {
+    const metaReferrer = document.createElement('meta');
+    metaReferrer.name = 'referrer';
+    metaReferrer.content = 'no-referrer';
+    document.head.appendChild(metaReferrer);
+
+    return () => {
+      document.head.removeChild(metaReferrer);
+    };
+  }, []);
+
+  const handleRefresh = () => {
+    setPlayerKey(prev => prev + 1);
+  };
+
+  const handleServerChange = (index: number) => {
+    setCurrentServerIndex(index);
+    setPlayerKey(prev => prev + 1);
+  };
+
+  const currentLink = movie?.alternativeLinks?.[currentServerIndex] || movie?.link;
 
   if (isLoading) {
     return (
@@ -60,7 +84,6 @@ const MovieDetails = () => {
 
   const backdropUrl = movie.backdrop || movie.image;
   const posterUrl = movie.image;
-  const playerUrl = videoUrl || `https://api-flixy.vercel.app/watch?id=${id}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -161,43 +184,101 @@ const MovieDetails = () => {
               </div>
             )}
 
-            {/* Player Embutido */}
-            <Card className="border-2 border-primary/20">
-              <CardContent className="p-6 space-y-4">
-                {showPlayer ? (
-                  <>
-                    <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
-                      <iframe
-                        src={playerUrl}
-                        className="absolute top-0 left-0 w-full h-full"
-                        allowFullScreen
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        referrerPolicy="origin"
-                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
-                        title={movie.title}
-                      />
-                    </div>
+            {/* Player Embutido ou Botão */}
+            {currentLink ? (
+              <Card className="border-2 border-primary/20">
+                <CardContent className="p-6 space-y-4">
+                  {showPlayer ? (
+                    <>
+                      <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
+                        <iframe
+                          key={playerKey}
+                          src={currentLink}
+                          className="absolute top-0 left-0 w-full h-full"
+                          allowFullScreen
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          referrerPolicy="origin"
+                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation allow-popups-to-escape-sandbox"
+                          title={movie.title}
+                        />
+                      </div>
+                      
+                      {/* Seletor de Servidores */}
+                      {movie.alternativeLinks && movie.alternativeLinks.length > 1 && (
+                        <div>
+                          <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                            <Server className="w-4 h-4" />
+                            Servidores Disponíveis
+                          </h4>
+                          <div className="grid grid-cols-3 gap-2">
+                            {movie.alternativeLinks.map((_, index) => (
+                              <Button
+                                key={index}
+                                variant={currentServerIndex === index ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handleServerChange(index)}
+                              >
+                                Servidor {index + 1}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRefresh}
+                          className="flex-1"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Recarregar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(currentLink, '_blank')}
+                          className="flex-1"
+                        >
+                          <Maximize2 className="w-4 h-4 mr-2" />
+                          Tela Cheia
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPlayer(false)}
+                          className="flex-1"
+                        >
+                          Fechar
+                        </Button>
+                      </div>
+                      <Alert>
+                        <AlertDescription className="text-xs">
+                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor ou clique em "Tela Cheia".
+                        </AlertDescription>
+                      </Alert>
+                    </>
+                  ) : (
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPlayer(false)}
+                      size="lg"
                       className="w-full"
+                      onClick={() => setShowPlayer(true)}
                     >
-                      Fechar Player
+                      <Play className="w-5 h-5 mr-2" />
+                      Assistir Agora
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    onClick={() => setShowPlayer(true)}
-                  >
-                    <Play className="w-5 h-5 mr-2" />
-                    Assistir Agora
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Link de streaming não disponível para este filme no momento.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Sinopse e Detalhes */}
             <Card>

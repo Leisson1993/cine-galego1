@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Header } from "@/components/header";
 import { CategoryFilter } from "@/components/category-filter";
 import { MovieCard } from "@/components/movie-card";
-import { useFlixyMovies } from "@/hooks/use-flixy-movies";
+import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Wifi } from "lucide-react";
@@ -12,7 +12,7 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const { categories, useAllMovies, useMoviesByCategory, useSearchMovies } = useFlixyMovies();
+  const { categories, useAllMovies, useMoviesByCategory, useSearchMovies } = useVercelMovies();
 
   // Determinar qual query usar
   const allMoviesQuery = useAllMovies();
