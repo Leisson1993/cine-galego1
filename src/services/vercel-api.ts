@@ -192,33 +192,17 @@ export const vercelApiService = {
     }
   },
 
-  // Gerar múltiplos links alternativos de embed - USANDO PROXY LOCAL
+  // Gerar múltiplos links alternativos de embed - APENAS SERVIDORES CONFIÁVEIS
   generateEmbedLinks(movieSlug: string): string[] {
-    const useProxy = import.meta.env.DEV;
-    
-    if (useProxy) {
-      // Em desenvolvimento, usar proxy local
-      return [
-        `/embed/filme/${movieSlug}`,
-        `https://vidsrc.to/embed/movie/${movieSlug}`,
-        `https://vidsrc.me/embed/movie?tmdb=${movieSlug}`,
-        `https://www.2embed.to/embed/tmdb/movie?id=${movieSlug}`,
-        `https://multiembed.mov/directstream.php?video_id=${movieSlug}`,
-        `https://player.smashy.stream/movie/${movieSlug}`,
-        `https://embedder.net/e/${movieSlug}`,
-      ];
-    } else {
-      // Em produção, usar URLs diretas
-      return [
-        `https://embed.warezcdn.com/filme/${movieSlug}`,
-        `https://vidsrc.to/embed/movie/${movieSlug}`,
-        `https://vidsrc.me/embed/movie?tmdb=${movieSlug}`,
-        `https://www.2embed.to/embed/tmdb/movie?id=${movieSlug}`,
-        `https://multiembed.mov/directstream.php?video_id=${movieSlug}`,
-        `https://player.smashy.stream/movie/${movieSlug}`,
-        `https://embedder.net/e/${movieSlug}`,
-      ];
-    }
+    return [
+      `https://vidsrc.to/embed/movie/${movieSlug}`,
+      `https://vidsrc.me/embed/movie?tmdb=${movieSlug}`,
+      `https://www.2embed.to/embed/tmdb/movie?id=${movieSlug}`,
+      `https://multiembed.mov/directstream.php?video_id=${movieSlug}`,
+      `https://player.smashy.stream/movie/${movieSlug}`,
+      `https://embedder.net/e/movie?tmdb=${movieSlug}`,
+      `https://vidsrc.xyz/embed/movie/${movieSlug}`,
+    ];
   },
 
   // Parsear filme - AJUSTADO para o formato correto da API

@@ -47,23 +47,6 @@ export default defineConfig(() => ({
           });
         },
       },
-      '/embed': {
-        target: 'https://embed.warezcdn.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/embed/, ''),
-        secure: false,
-        headers: {
-          'Referer': 'https://embed.warezcdn.com',
-          'Origin': 'https://embed.warezcdn.com',
-        },
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            proxyReq.setHeader('Referer', 'https://embed.warezcdn.com');
-            proxyReq.setHeader('Origin', 'https://embed.warezcdn.com');
-            proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-          });
-        },
-      },
     }
   },
   plugins: [dyadComponentTagger(), react()],
