@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2 } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,8 +13,13 @@ const MovieDetails = () => {
   const navigate = useNavigate();
   const { useMovieDetails } = useVercelMovies();
   const [showPlayer, setShowPlayer] = useState(false);
+  const [playerKey, setPlayerKey] = useState(0);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
+
+  const handleRefresh = () => {
+    setPlayerKey(prev => prev + 1);
+  };
 
   if (isLoading) {
     return (
@@ -167,10 +172,13 @@ const MovieDetails = () => {
                     <>
                       <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
                         <iframe
+                          key={playerKey}
                           src={movie.link}
                           className="absolute top-0 left-0 w-full h-full"
                           allowFullScreen
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
                           title={movie.title}
                         />
                       </div>
@@ -178,10 +186,11 @@ const MovieDetails = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setShowPlayer(false)}
+                          onClick={handleRefresh}
                           className="flex-1"
                         >
-                          Fechar Player
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Recarregar
                         </Button>
                         <Button
                           variant="outline"
@@ -192,7 +201,20 @@ const MovieDetails = () => {
                           <Maximize2 className="w-4 h-4 mr-2" />
                           Tela Cheia
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPlayer(false)}
+                          className="flex-1"
+                        >
+                          Fechar
+                        </Button>
                       </div>
+                      <Alert>
+                        <AlertDescription className="text-xs">
+                          💡 <strong>Dica:</strong> Se o vídeo não carregar, clique em "Recarregar" ou "Tela Cheia" para abrir em uma nova aba.
+                        </AlertDescription>
+                      </Alert>
                     </>
                   ) : (
                     <Button
