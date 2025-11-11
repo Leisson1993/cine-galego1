@@ -71,42 +71,17 @@ export const vercelApiService = {
       const data = await response.json();
       
       console.log('✅ JSON parseado!');
-      console.log('📦 Tipo de dados:', typeof data, 'É array?', Array.isArray(data));
-      
-      // Log do primeiro item para debug
-      if (Array.isArray(data) && data.length > 0) {
-        console.log('📦 Primeiro filme (raw):', JSON.stringify(data[0], null, 2));
-      }
+      console.log('📦 Total de filmes:', data.length);
 
-      // Verificar o formato da resposta
-      let movies: any[] = [];
-      
-      if (Array.isArray(data)) {
-        movies = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        movies = data.results;
-      } else if (data.movies && Array.isArray(data.movies)) {
-        movies = data.movies;
-      } else if (data.filmes && Array.isArray(data.filmes)) {
-        movies = data.filmes;
-      } else if (data.data && Array.isArray(data.data)) {
-        movies = data.data;
-      } else {
-        console.error('❌ Formato desconhecido:', Object.keys(data));
-        throw new Error('Formato de dados não reconhecido');
-      }
-
-      console.log(`📦 Total de filmes encontrados: ${movies.length}`);
-
-      if (movies.length === 0) {
+      if (!Array.isArray(data) || data.length === 0) {
         console.warn('⚠️ Nenhum filme encontrado');
         return { results: [], total: 0 };
       }
 
-      const parsedMovies = movies.map((movie, index) => {
+      const parsedMovies = data.map((movie, index) => {
         const parsed = this.parseMovie(movie);
         if (index === 0) {
-          console.log('📦 Primeiro filme (parseado):', JSON.stringify(parsed, null, 2));
+          console.log('📦 Primeiro filme parseado:', parsed);
         }
         return parsed;
       });
@@ -169,7 +144,7 @@ export const vercelApiService = {
     }
   },
 
-  // Buscar filme por ID
+  // Buscar filme por ID (link)
   async getMovieById(movieId: string): Promise<VercelMovie | null> {
     try {
       console.log('🔍 Buscando filme ID:', movieId);
@@ -216,76 +191,44 @@ export const vercelApiService = {
     }
   },
 
-  // Parsear filme - MELHORADO para aceitar mais formatos
+  // Parsear filme - AJUSTADO para o formato correto da API
   parseMovie(data: any): VercelMovie {
     if (!data) return this.getDefaultMovie();
 
-    // Tentar extrair ID de várias formas possíveis
-    const id = String(
-      data.id || 
-      data._id || 
-      data.imdbID || 
-      data.movieId ||
-      data.idFilme ||
-      `movie-${Date.now()}-${Math.random()}`
-    );
+    // Formato da API:
+    // {
+    //   "ano": "2024",
+    //   "capa": "https://image.tmdb.org/t/p/w300//...",
+    //   "duracao": "107 Min",
+    //   "imdb": "IMDb 4.5",
+    //   "link": "assassinos-sadicos-3-carnificina",
+    //   "titulo": "Assassinos Sádicos 3: Carnificina"
+    // }
 
-    // Tentar extrair título de várias formas
-    const title = 
-      data.title || 
-      data.name || 
-      data.titulo || 
-      data.nome || 
-      data.Title || 
-      data.nomeFilme ||
-      'Sem título';
+    // Usar o link como ID único
+    const id = data.link || `movie-${Date.now()}-${Math.random()}`;
+    
+    // Extrair nota do IMDb (ex: "IMDb 4.5" -> 4.5)
+    const imdbRating = data.imdb ? parseFloat(data.imdb.replace('IMDb', '').trim()) : 7.0;
 
-    // Tentar extrair imagem de várias formas
-    const image = 
-      data.image || 
-      data.poster || 
-      data.poster_path || 
-      data.imagem || 
-      data.imagem_original || 
-      data.Poster ||
-      data.capa ||
-      data.thumbnail ||
-      data.img ||
-      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop';
+    // Gerar link do player
+    const playerLink = data.link ? `https://embed.warezcdn.com/filme/${data.link}` : null;
 
-    // Tentar extrair backdrop
-    const backdrop = 
-      data.backdrop || 
-      data.backdrop_path || 
-      data.imagemFundo || 
-      data.background ||
-      image;
-
-    // Tentar extrair link do player
-    const link = 
-      data.link || 
-      data.url || 
-      data.player || 
-      data.stream_url || 
-      data.video ||
-      data.playerUrl ||
-      data.streamUrl;
-
-    const parsed = {
+    const parsed: VercelMovie = {
       id,
-      title,
-      year: data.year || data.ano || data.Year || data.release_date?.split('-')[0] || '2024',
-      genre: this.parseGenres(data.genre || data.genres || data.genero || data.categoria || data.Genre),
-      rating: this.parseRating(data.rating || data.vote_average || data.nota || data.imdb || data.imdbRating),
-      duration: data.duration || data.runtime || data.duracao || data.Runtime || '2h',
-      image,
-      backdrop,
-      description: data.description || data.overview || data.descricao || data.sinopse || data.Plot || 'Sem descrição disponível',
-      director: data.director || data.diretor || data.Director || 'N/A',
-      cast: this.parseCast(data.cast || data.actors || data.elenco || data.Actors),
-      link,
-      quality: data.quality || data.qualidade || 'HD',
-      language: data.language || data.idioma || data.tipo || data.Language || 'DUB',
+      title: data.titulo || 'Sem título',
+      year: data.ano || '2024',
+      genre: ['Ação'], // A API não retorna gênero, então usamos um padrão
+      rating: imdbRating,
+      duration: data.duracao || '0 Min',
+      image: data.capa || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+      backdrop: data.capa, // Usar a mesma imagem como backdrop
+      description: `${data.titulo} (${data.ano})`, // A API não retorna descrição
+      director: 'N/A',
+      cast: [],
+      link: playerLink,
+      quality: 'HD',
+      language: 'DUB',
     };
 
     return parsed;
