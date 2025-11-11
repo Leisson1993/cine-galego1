@@ -1,0 +1,62 @@
+{
+  "name": "CINE-GALEGO - Filmes, Séries e Animes",
+  "short_name": "CINE-GALEGO",
+  "description": "Assista filmes, séries e animes online grátis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#dc2626",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["entertainment", "video", "movies"],
+  "screenshots": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Filmes",
+      "short_name": "Filmes",
+      "description": "Ver catálogo de filmes",
+      "url": "/filmes",
+      "icons": [{ "src": "/logo.jpg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Séries",
+      "short_name": "Séries",
+      "description": "Ver catálogo de séries",
+      "url": "/series",
+      "icons": [{ "src": "/logo.jpg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Animes",
+      "short_name": "Animes",
+      "description": "Ver catálogo de animes",
+      "url": "/animes",
+      "icons": [{ "src": "/logo.jpg", "sizes": "192x192" }]
+    }
+  ]
+}
