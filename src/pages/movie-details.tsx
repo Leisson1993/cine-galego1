@@ -2,15 +2,17 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useVercelMovies } from "@/hooks/use-vercel-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play, ExternalLink, AlertCircle } from "lucide-react";
+import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, Maximize2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useState } from "react";
 
 const MovieDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { useMovieDetails } = useVercelMovies();
+  const [showPlayer, setShowPlayer] = useState(false);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
@@ -60,11 +62,15 @@ const MovieDetails = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header com backdrop */}
       <div className="relative h-[60vh] overflow-hidden">
         <img
           src={backdropUrl}
           alt={movie.title}
           className="w-full h-full object-cover blur-sm scale-110"
+          onError={(e) => {
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1920&h=1080&fit=crop';
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
         
@@ -87,6 +93,9 @@ const MovieDetails = () => {
                 src={posterUrl}
                 alt={movie.title}
                 className="w-full aspect-[2/3] object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop';
+                }}
               />
             </Card>
 
@@ -150,22 +159,51 @@ const MovieDetails = () => {
               </div>
             )}
 
-            {/* Botão de Assistir */}
+            {/* Player Embutido ou Botão */}
             {movie.link ? (
               <Card className="border-2 border-primary/20">
-                <CardContent className="p-6">
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    onClick={() => window.open(movie.link, '_blank')}
-                  >
-                    <Play className="w-5 h-5 mr-2" />
-                    Assistir Agora
-                    <ExternalLink className="w-4 h-4 ml-2" />
-                  </Button>
-                  <p className="text-xs text-muted-foreground text-center mt-3">
-                    Clique para assistir em uma nova aba
-                  </p>
+                <CardContent className="p-6 space-y-4">
+                  {showPlayer ? (
+                    <>
+                      <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
+                        <iframe
+                          src={movie.link}
+                          className="absolute top-0 left-0 w-full h-full"
+                          allowFullScreen
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          title={movie.title}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPlayer(false)}
+                          className="flex-1"
+                        >
+                          Fechar Player
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(movie.link, '_blank')}
+                          className="flex-1"
+                        >
+                          <Maximize2 className="w-4 h-4 mr-2" />
+                          Tela Cheia
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      onClick={() => setShowPlayer(true)}
+                    >
+                      <Play className="w-5 h-5 mr-2" />
+                      Assistir Agora
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ) : (
