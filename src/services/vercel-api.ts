@@ -23,6 +23,7 @@ export interface VercelMovie {
   language?: string;
   alternativeLinks?: string[];
   tmdbId?: string;
+  type?: 'movie' | 'series' | 'anime';
   [key: string]: any;
 }
 
@@ -48,16 +49,16 @@ export const vercelCategories: VercelCategory[] = [
 
 export const vercelApiService = {
   // Buscar ID do TMDB pelo título e ano
-  async getTMDBId(title: string, year?: string): Promise<string | null> {
+  async getTMDBId(title: string, year?: string, type: 'movie' | 'tv' = 'movie'): Promise<string | null> {
     if (!TMDB_API_KEY) {
       console.warn('⚠️ TMDB API Key não configurada');
       return null;
     }
 
     try {
-      const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(title)}${year ? `&year=${year}` : ''}`;
+      const searchUrl = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(title)}${year ? `&year=${year}` : ''}`;
       
-      console.log('🔍 Buscando TMDB ID para:', title, year);
+      console.log('🔍 Buscando TMDB ID para:', title, year, type);
       
       const response = await fetch(searchUrl);
       
@@ -117,7 +118,7 @@ export const vercelApiService = {
       }
 
       const parsedMovies = await Promise.all(data.map(async (movie, index) => {
-        const parsed = await this.parseMovie(movie);
+        const parsed = await this.parseMovie(movie, 'movie');
         if (index === 0) {
           console.log('📦 Primeiro filme parseado:', parsed);
         }
@@ -132,6 +133,88 @@ export const vercelApiService = {
       };
     } catch (error) {
       console.error('❌ ERRO:', error);
+      throw error;
+    }
+  },
+
+  // Buscar séries (simulado - filtrando por tipo)
+  async getAllSeries(): Promise<{ results: VercelMovie[]; total: number }> {
+    try {
+      const allMovies = await this.getAllMovies();
+      
+      // Filtrar apenas séries (baseado no título ou outros critérios)
+      const series = allMovies.results.filter(movie => {
+        const titleLower = movie.title.toLowerCase();
+        return titleLower.includes('série') || 
+               titleLower.includes('temporada') || 
+               titleLower.includes('season');
+      });
+
+      // Se não encontrou séries, retornar alguns filmes como exemplo
+      if (series.length === 0) {
+        const exampleSeries = allMovies.results.slice(0, 10).map(movie => ({
+          ...movie,
+          type: 'series' as const,
+        }));
+        
+        return {
+          results: exampleSeries,
+          total: exampleSeries.length,
+        };
+      }
+
+      return {
+        results: series.map(s => ({ ...s, type: 'series' as const })),
+        total: series.length,
+      };
+    } catch (error) {
+      console.error('❌ Erro ao buscar séries:', error);
+      throw error;
+    }
+  },
+
+  // Buscar animes (simulado - filtrando por gênero)
+  async getAllAnimes(): Promise<{ results: VercelMovie[]; total: number }> {
+    try {
+      const allMovies = await this.getAllMovies();
+      
+      // Filtrar apenas animes (baseado no gênero ou título)
+      const animes = allMovies.results.filter(movie => {
+        const titleLower = movie.title.toLowerCase();
+        const hasAnimeGenre = movie.genre?.some(g => 
+          g.toLowerCase().includes('animação') || 
+          g.toLowerCase().includes('animation')
+        );
+        
+        return hasAnimeGenre || 
+               titleLower.includes('anime') ||
+               titleLower.includes('naruto') ||
+               titleLower.includes('dragon') ||
+               titleLower.includes('pokemon');
+      });
+
+      // Se não encontrou animes, retornar alguns filmes de animação como exemplo
+      if (animes.length === 0) {
+        const exampleAnimes = allMovies.results
+          .filter(m => m.genre?.some(g => g.toLowerCase().includes('animação')))
+          .slice(0, 10)
+          .map(movie => ({
+            ...movie,
+            type: 'anime' as const,
+          }));
+        
+        return {
+          results: exampleAnimes,
+          total: exampleAnimes.length,
+        };
+      }
+
+      return {
+        results: animes.map(a => ({ ...a, type: 'anime' as const })),
+        total: animes.length,
+      };
+    } catch (error) {
+      console.error('❌ Erro ao buscar animes:', error);
       throw error;
     }
   },
@@ -230,7 +313,19 @@ export const vercelApiService = {
   },
 
   // Gerar múltiplos links alternativos de embed com TMDB ID
-  generateEmbedLinks(tmdbId: string): string[] {
+  generateEmbedLinks(tmdbId: string, type: 'movie' | 'tv' = 'movie'): string[] {
+    if (type === 'tv') {
+      return [
+        `https://vidsrc.xyz/embed/tv/${tmdbId}`,
+        `https://vidsrc.to/embed/tv/${tmdbId}`,
+        `https://vidsrc.me/embed/tv?tmdb=${tmdbId}`,
+        `https://www.2embed.cc/embedtv/${tmdbId}`,
+        `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=1`,
+        `https://player.smashy.stream/tv/${tmdbId}`,
+        `https://vidsrc.pro/embed/tv/${tmdbId}`,
+      ];
+    }
+    
     return [
       `https://vidsrc.xyz/embed/movie/${tmdbId}`,
       `https://vidsrc.to/embed/movie/${tmdbId}`,
@@ -243,7 +338,7 @@ export const vercelApiService = {
   },
 
   // Parsear filme - AJUSTADO para buscar TMDB ID
-  async parseMovie(data: any): Promise<VercelMovie> {
+  async parseMovie(data: any, type: 'movie' | 'series' | 'anime' = 'movie'): Promise<VercelMovie> {
     if (!data) return this.getDefaultMovie();
 
     // Usar o link como ID único
@@ -256,10 +351,11 @@ export const vercelApiService = {
     const year = data.ano || '2024';
 
     // Buscar TMDB ID
-    const tmdbId = await this.getTMDBId(title, year);
+    const tmdbType = type === 'series' ? 'tv' : 'movie';
+    const tmdbId = await this.getTMDBId(title, year, tmdbType);
     
     // Gerar múltiplos links de player
-    const alternativeLinks = tmdbId ? this.generateEmbedLinks(tmdbId) : [];
+    const alternativeLinks = tmdbId ? this.generateEmbedLinks(tmdbId, tmdbType) : [];
     const primaryLink = alternativeLinks.length > 0 ? alternativeLinks[0] : null;
 
     const parsed: VercelMovie = {
@@ -279,6 +375,7 @@ export const vercelApiService = {
       tmdbId: tmdbId || undefined,
       quality: 'HD',
       language: 'DUB',
+      type,
     };
 
     return parsed;
@@ -331,6 +428,7 @@ export const vercelApiService = {
       description: 'Sem descrição disponível',
       director: 'N/A',
       cast: [],
+      type: 'movie',
     };
   },
 
@@ -352,6 +450,7 @@ export const vercelApiService = {
       tmdbId: vercelMovie.tmdbId,
       quality: vercelMovie.quality,
       language: vercelMovie.language,
+      type: vercelMovie.type,
     };
   },
 };

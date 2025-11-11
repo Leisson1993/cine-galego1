@@ -17,6 +17,32 @@ export const useVercelMovies = () => {
     });
   };
 
+  // Buscar todas as séries
+  const useAllSeries = () => {
+    return useQuery({
+      queryKey: ['vercel-series', 'all'],
+      queryFn: () => vercelApiService.getAllSeries(),
+      select: (data) => ({
+        ...data,
+        results: data.results.map(movie => vercelApiService.convertToLocalMovie(movie))
+      }),
+      staleTime: 1000 * 60 * 5,
+    });
+  };
+
+  // Buscar todos os animes
+  const useAllAnimes = () => {
+    return useQuery({
+      queryKey: ['vercel-animes', 'all'],
+      queryFn: () => vercelApiService.getAllAnimes(),
+      select: (data) => ({
+        ...data,
+        results: data.results.map(movie => vercelApiService.convertToLocalMovie(movie))
+      }),
+      staleTime: 1000 * 60 * 5,
+    });
+  };
+
   // Buscar filmes por categoria
   const useMoviesByCategory = (categorySlug: string) => {
     return useQuery({
@@ -53,8 +79,12 @@ export const useVercelMovies = () => {
         
         // Primeiro, tentar encontrar o filme no cache
         const allMoviesCache = queryClient.getQueriesData({ queryKey: ['vercel-movies'] });
+        const allSeriesCache = queryClient.getQueriesData({ queryKey: ['vercel-series'] });
+        const allAnimesCache = queryClient.getQueriesData({ queryKey: ['vercel-animes'] });
         
-        for (const [, data] of allMoviesCache) {
+        const allCaches = [...allMoviesCache, ...allSeriesCache, ...allAnimesCache];
+        
+        for (const [, data] of allCaches) {
           if (data && typeof data === 'object' && 'results' in data) {
             const cachedData = data as { results: any[] };
             const foundMovie = cachedData.results.find((m: any) => m.id === movieId);
@@ -85,6 +115,8 @@ export const useVercelMovies = () => {
   return {
     categories: vercelCategories,
     useAllMovies,
+    useAllSeries,
+    useAllAnimes,
     useMoviesByCategory,
     useSearchMovies,
     useMovieDetails,
