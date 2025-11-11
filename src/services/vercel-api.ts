@@ -51,11 +51,22 @@ export const vercelApiService = {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
+        mode: 'cors',
+        cache: 'no-cache',
       });
       
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Erro desconhecido');
+        console.error('❌ Erro na resposta:', response.status, errorText);
         throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('❌ Resposta não é JSON:', contentType);
+        throw new Error('A API não retornou JSON válido');
       }
 
       const data = await response.json();
@@ -72,12 +83,20 @@ export const vercelApiService = {
         movies = data.results;
       } else if (data.movies && Array.isArray(data.movies)) {
         movies = data.movies;
+      } else if (data.data && Array.isArray(data.data)) {
+        movies = data.data;
       } else {
         console.warn('⚠️ Formato de resposta desconhecido:', data);
-        return { results: [], total: 0 };
+        throw new Error('Formato de dados não reconhecido');
+      }
+
+      if (movies.length === 0) {
+        console.warn('⚠️ Nenhum filme encontrado na resposta');
       }
 
       const parsedMovies = movies.map(movie => this.parseMovie(movie));
+      
+      console.log(`✅ ${parsedMovies.length} filmes parseados com sucesso`);
       
       return {
         results: parsedMovies,
@@ -85,6 +104,12 @@ export const vercelApiService = {
       };
     } catch (error) {
       console.error('❌ Erro ao buscar filmes da Vercel API:', error);
+      
+      // Fornecer mensagem de erro mais específica
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Não foi possível conectar à API. Verifique sua conexão com a internet ou tente novamente mais tarde.');
+      }
+      
       throw error;
     }
   },
@@ -104,7 +129,26 @@ export const vercelApiService = {
         if (!movie.genre || !Array.isArray(movie.genre)) return false;
         
         const genreLower = movie.genre.map(g => g.toLowerCase());
-        return genreLower.some(g => g.includes(categorySlug.toLowerCase()));
+        
+        // Mapear slugs para nomes de gêneros
+        const categoryMap: { [key: string]: string[] } = {
+          'action': ['ação', 'action'],
+          'animation': ['animação', 'animation'],
+          'drama': ['drama'],
+          'romance': ['romance'],
+          'comedy': ['comédia', 'comedy'],
+          'scifi': ['ficção científica', 'sci-fi', 'science fiction'],
+          'horror': ['terror', 'horror'],
+          'adventure': ['aventura', 'adventure'],
+          'fantasy': ['fantasia', 'fantasy'],
+          'thriller': ['thriller', 'suspense'],
+        };
+        
+        const searchTerms = categoryMap[categorySlug.toLowerCase()] || [categorySlug];
+        
+        return genreLower.some(g => 
+          searchTerms.some(term => g.includes(term.toLowerCase()))
+        );
       });
 
       console.log(`🔍 Filmes filtrados por categoria "${categorySlug}": ${filtered.length}`);
@@ -122,91 +166,44 @@ export const vercelApiService = {
   // Buscar filme por ID
   async getMovieById(movieId: string): Promise<VercelMovie | null> {
     try {
-      const url = `${VERCEL_API_BASE_URL}/movie/${movieId}`;
+      // Tentar buscar na lista completa primeiro (mais confiável)
+      console.log('🔍 Buscando filme ID na lista completa:', movieId);
+      const allMovies = await this.getAllMovies();
+      const movie = allMovies.results.find(m => m.id === movieId);
       
-      console.log('🔍 Buscando detalhes do filme ID:', movieId);
-      console.log('📡 URL:', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        // Se não houver endpoint específico, buscar na lista completa
-        console.log('⚠️ Endpoint de detalhes não disponível, buscando na lista completa');
-        const allMovies = await this.getAllMovies();
-        const movie = allMovies.results.find(m => m.id === movieId);
-        return movie || null;
+      if (movie) {
+        console.log('✅ Filme encontrado na lista:', movie.title);
+        return movie;
       }
-
-      const data = await response.json();
       
-      console.log('✅ Detalhes do filme:', data);
-
-      return this.parseMovie(data);
+      console.warn('⚠️ Filme não encontrado na lista');
+      return null;
     } catch (error) {
       console.error('❌ Erro ao buscar detalhes do filme:', error);
-      
-      // Fallback: buscar na lista completa
-      try {
-        const allMovies = await this.getAllMovies();
-        const movie = allMovies.results.find(m => m.id === movieId);
-        return movie || null;
-      } catch {
-        return null;
-      }
+      return null;
     }
   },
 
   // Buscar filmes (pesquisa)
   async searchMovies(query: string): Promise<{ results: VercelMovie[]; total: number }> {
     try {
-      const url = `${VERCEL_API_BASE_URL}/search?q=${encodeURIComponent(query)}`;
+      console.log('🔍 Buscando filmes localmente:', query);
+      const allMovies = await this.getAllMovies();
       
-      console.log('🔍 Buscando filmes:', query);
-      console.log('📡 URL:', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
+      const queryLower = query.toLowerCase();
+      const filtered = allMovies.results.filter(movie => {
+        const titleMatch = movie.title?.toLowerCase().includes(queryLower);
+        const descriptionMatch = movie.description?.toLowerCase().includes(queryLower);
+        const genreMatch = movie.genre?.some(g => g.toLowerCase().includes(queryLower));
+        
+        return titleMatch || descriptionMatch || genreMatch;
       });
       
-      if (!response.ok) {
-        // Se não houver endpoint de busca, filtrar localmente
-        console.log('⚠️ Endpoint de busca não disponível, filtrando localmente');
-        const allMovies = await this.getAllMovies();
-        const filtered = allMovies.results.filter(movie => 
-          movie.title?.toLowerCase().includes(query.toLowerCase())
-        );
-        
-        return {
-          results: filtered,
-          total: filtered.length,
-        };
-      }
-
-      const data = await response.json();
+      console.log(`✅ ${filtered.length} filmes encontrados para "${query}"`);
       
-      console.log('✅ Resultados da busca:', data);
-
-      let movies: VercelMovie[] = [];
-      
-      if (Array.isArray(data)) {
-        movies = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        movies = data.results;
-      }
-
-      const parsedMovies = movies.map(movie => this.parseMovie(movie));
-
       return {
-        results: parsedMovies,
-        total: parsedMovies.length,
+        results: filtered,
+        total: filtered.length,
       };
     } catch (error) {
       console.error('❌ Erro ao buscar filmes:', error);
@@ -219,20 +216,20 @@ export const vercelApiService = {
     if (!data) return this.getDefaultMovie();
 
     return {
-      id: data.id || data._id || `movie-${Date.now()}`,
-      title: data.title || data.name || data.titulo || data.nome || 'Sem título',
-      year: data.year || data.ano || data.release_date?.split('-')[0] || '2024',
-      genre: this.parseGenres(data.genre || data.genres || data.genero || data.categoria),
-      rating: this.parseRating(data.rating || data.vote_average || data.nota || data.imdb),
-      duration: data.duration || data.runtime || data.duracao || '2h',
-      image: data.image || data.poster || data.poster_path || data.imagem || data.imagem_original || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
+      id: data.id || data._id || data.imdbID || `movie-${Date.now()}-${Math.random()}`,
+      title: data.title || data.name || data.titulo || data.nome || data.Title || 'Sem título',
+      year: data.year || data.ano || data.Year || data.release_date?.split('-')[0] || '2024',
+      genre: this.parseGenres(data.genre || data.genres || data.genero || data.categoria || data.Genre),
+      rating: this.parseRating(data.rating || data.vote_average || data.nota || data.imdb || data.imdbRating),
+      duration: data.duration || data.runtime || data.duracao || data.Runtime || '2h',
+      image: data.image || data.poster || data.poster_path || data.imagem || data.imagem_original || data.Poster || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&h=750&fit=crop',
       backdrop: data.backdrop || data.backdrop_path || data.imagemFundo || data.image,
-      description: data.description || data.overview || data.descricao || data.sinopse || 'Sem descrição disponível',
-      director: data.director || data.diretor || 'N/A',
-      cast: this.parseCast(data.cast || data.actors || data.elenco),
-      link: data.link || data.url || data.player || data.stream_url,
+      description: data.description || data.overview || data.descricao || data.sinopse || data.Plot || 'Sem descrição disponível',
+      director: data.director || data.diretor || data.Director || 'N/A',
+      cast: this.parseCast(data.cast || data.actors || data.elenco || data.Actors),
+      link: data.link || data.url || data.player || data.stream_url || data.video,
       quality: data.quality || data.qualidade || 'HD',
-      language: data.language || data.idioma || data.tipo || 'DUB',
+      language: data.language || data.idioma || data.tipo || data.Language || 'DUB',
     };
   },
 
