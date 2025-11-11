@@ -3,6 +3,14 @@ const VERCEL_API_BASE_URL = import.meta.env.DEV
   ? '/api/filmes'
   : 'https://apifilmes-wheat.vercel.app/filmes';
 
+const VERCEL_SERIES_BASE_URL = import.meta.env.DEV 
+  ? '/api/series'
+  : 'https://apifilmes-wheat.vercel.app/series';
+
+const VERCEL_ANIMES_BASE_URL = import.meta.env.DEV 
+  ? '/api/animes'
+  : 'https://apifilmes-wheat.vercel.app/animes';
+
 const API_KEY = '83a1bf1e-bbb3-4873-ae5c-3c0113794ea1';
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 
@@ -87,7 +95,7 @@ export const vercelApiService = {
   async getAllMovies(): Promise<{ results: VercelMovie[]; total: number }> {
     const url = `${VERCEL_API_BASE_URL}?apiKey=${API_KEY}`;
     
-    console.log('🔍 Buscando filmes via proxy...');
+    console.log('🎬 Buscando FILMES via API...');
     console.log('📡 URL:', url);
     
     try {
@@ -137,84 +145,110 @@ export const vercelApiService = {
     }
   },
 
-  // Buscar séries (simulado - filtrando por tipo)
+  // Buscar todas as séries
   async getAllSeries(): Promise<{ results: VercelMovie[]; total: number }> {
+    const url = `${VERCEL_SERIES_BASE_URL}?apiKey=${API_KEY}`;
+    
+    console.log('📺 Buscando SÉRIES via API...');
+    console.log('📡 URL:', url);
+    
     try {
-      const allMovies = await this.getAllMovies();
-      
-      // Filtrar apenas séries (baseado no título ou outros critérios)
-      const series = allMovies.results.filter(movie => {
-        const titleLower = movie.title.toLowerCase();
-        return titleLower.includes('série') || 
-               titleLower.includes('temporada') || 
-               titleLower.includes('season');
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
       });
-
-      // Se não encontrou séries, retornar alguns filmes como exemplo
-      if (series.length === 0) {
-        const exampleSeries = allMovies.results.slice(0, 10).map(movie => ({
-          ...movie,
-          type: 'series' as const,
-        }));
-        
-        return {
-          results: exampleSeries,
-          total: exampleSeries.length,
-        };
+      
+      console.log('✅ Resposta recebida! Status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Erro desconhecido');
+        console.error('❌ Erro na resposta:', response.status, errorText);
+        throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
       }
 
+      const data = await response.json();
+      
+      console.log('✅ JSON parseado!');
+      console.log('📦 Total de séries:', data.length);
+
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn('⚠️ Nenhuma série encontrada');
+        return { results: [], total: 0 };
+      }
+
+      const parsedSeries = await Promise.all(data.map(async (serie, index) => {
+        const parsed = await this.parseMovie(serie, 'series');
+        if (index === 0) {
+          console.log('📦 Primeira série parseada:', parsed);
+        }
+        return parsed;
+      }));
+      
+      console.log(`✅ ${parsedSeries.length} séries parseadas com sucesso!`);
+      
       return {
-        results: series.map(s => ({ ...s, type: 'series' as const })),
-        total: series.length,
+        results: parsedSeries,
+        total: parsedSeries.length,
       };
     } catch (error) {
-      console.error('❌ Erro ao buscar séries:', error);
+      console.error('❌ ERRO:', error);
       throw error;
     }
   },
 
-  // Buscar animes (simulado - filtrando por gênero)
+  // Buscar todos os animes
   async getAllAnimes(): Promise<{ results: VercelMovie[]; total: number }> {
+    const url = `${VERCEL_ANIMES_BASE_URL}?apiKey=${API_KEY}`;
+    
+    console.log('✨ Buscando ANIMES via API...');
+    console.log('📡 URL:', url);
+    
     try {
-      const allMovies = await this.getAllMovies();
-      
-      // Filtrar apenas animes (baseado no gênero ou título)
-      const animes = allMovies.results.filter(movie => {
-        const titleLower = movie.title.toLowerCase();
-        const hasAnimeGenre = movie.genre?.some(g => 
-          g.toLowerCase().includes('animação') || 
-          g.toLowerCase().includes('animation')
-        );
-        
-        return hasAnimeGenre || 
-               titleLower.includes('anime') ||
-               titleLower.includes('naruto') ||
-               titleLower.includes('dragon') ||
-               titleLower.includes('pokemon');
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
       });
-
-      // Se não encontrou animes, retornar alguns filmes de animação como exemplo
-      if (animes.length === 0) {
-        const exampleAnimes = allMovies.results
-          .filter(m => m.genre?.some(g => g.toLowerCase().includes('animação')))
-          .slice(0, 10)
-          .map(movie => ({
-            ...movie,
-            type: 'anime' as const,
-          }));
-        
-        return {
-          results: exampleAnimes,
-          total: exampleAnimes.length,
-        };
+      
+      console.log('✅ Resposta recebida! Status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Erro desconhecido');
+        console.error('❌ Erro na resposta:', response.status, errorText);
+        throw new Error(`Erro na API: ${response.status} - ${response.statusText}`);
       }
 
+      const data = await response.json();
+      
+      console.log('✅ JSON parseado!');
+      console.log('📦 Total de animes:', data.length);
+
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn('⚠️ Nenhum anime encontrado');
+        return { results: [], total: 0 };
+      }
+
+      const parsedAnimes = await Promise.all(data.map(async (anime, index) => {
+        const parsed = await this.parseMovie(anime, 'anime');
+        if (index === 0) {
+          console.log('📦 Primeiro anime parseado:', parsed);
+        }
+        return parsed;
+      }));
+      
+      console.log(`✅ ${parsedAnimes.length} animes parseados com sucesso!`);
+      
       return {
-        results: animes.map(a => ({ ...a, type: 'anime' as const })),
-        total: animes.length,
+        results: parsedAnimes,
+        total: parsedAnimes.length,
       };
     } catch (error) {
-      console.error('❌ Erro ao buscar animes:', error);
+      console.error('❌ ERRO:', error);
       throw error;
     }
   },
@@ -342,7 +376,7 @@ export const vercelApiService = {
     if (!data) return this.getDefaultMovie();
 
     // Usar o link como ID único
-    const id = data.link || `movie-${Date.now()}-${Math.random()}`;
+    const id = data.link || `${type}-${Date.now()}-${Math.random()}`;
     
     // Extrair nota do IMDb (ex: "IMDb 4.5" -> 4.5)
     const imdbRating = data.imdb ? parseFloat(data.imdb.replace('IMDb', '').trim()) : 7.0;

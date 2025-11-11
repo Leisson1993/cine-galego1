@@ -31,6 +31,38 @@ export default defineConfig(() => ({
           });
         },
       },
+      '/api/series': {
+        target: 'https://apifilmes-wheat.vercel.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/series/, '/series'),
+        secure: false,
+        headers: {
+          'Referer': 'https://apifilmes-wheat.vercel.app',
+          'Origin': 'https://apifilmes-wheat.vercel.app',
+        },
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            proxyReq.setHeader('Referer', 'https://apifilmes-wheat.vercel.app');
+            proxyReq.setHeader('Origin', 'https://apifilmes-wheat.vercel.app');
+          });
+        },
+      },
+      '/api/animes': {
+        target: 'https://apifilmes-wheat.vercel.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/animes/, '/animes'),
+        secure: false,
+        headers: {
+          'Referer': 'https://apifilmes-wheat.vercel.app',
+          'Origin': 'https://apifilmes-wheat.vercel.app',
+        },
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            proxyReq.setHeader('Referer', 'https://apifilmes-wheat.vercel.app');
+            proxyReq.setHeader('Origin', 'https://apifilmes-wheat.vercel.app');
+          });
+        },
+      },
       '/api': {
         target: 'http://appservidor.erremepe.com:80',
         changeOrigin: true,
