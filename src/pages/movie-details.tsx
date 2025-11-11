@@ -2,10 +2,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMovies } from "@/hooks/use-movies";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Star, Clock, Calendar, Play } from "lucide-react";
-import { showSuccess } from "@/utils/toast";
+import { ArrowLeft, Star, Clock, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tmdbService } from "@/services/tmdb";
+import { StreamingOptions } from "@/components/streaming-options";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -13,10 +13,6 @@ const MovieDetails = () => {
   const { useMovieDetails } = useMovies();
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
-
-  const handleWatch = () => {
-    showSuccess("Iniciando reprodução...");
-  };
 
   if (isLoading) {
     return (
@@ -53,6 +49,7 @@ const MovieDetails = () => {
   const cast = movie.credits?.cast.slice(0, 5) || [];
   const backdropUrl = tmdbService.getImageUrl(movie.backdrop_path, 'original');
   const posterUrl = tmdbService.getImageUrl(movie.poster_path, 'w500');
+  const movieYear = new Date(movie.release_date).getFullYear().toString();
 
   return (
     <div className="min-h-screen bg-background">
@@ -74,15 +71,20 @@ const MovieDetails = () => {
         </Button>
       </div>
 
-      <div className="container px-4 -mt-40 relative z-10">
+      <div className="container px-4 -mt-40 relative z-10 pb-12">
         <div className="grid md:grid-cols-[300px,1fr] gap-8">
-          <Card className="overflow-hidden">
-            <img
-              src={posterUrl}
-              alt={movie.title}
-              className="w-full aspect-[2/3] object-cover"
-            />
-          </Card>
+          <div className="space-y-6">
+            <Card className="overflow-hidden">
+              <img
+                src={posterUrl}
+                alt={movie.title}
+                className="w-full aspect-[2/3] object-cover"
+              />
+            </Card>
+
+            {/* Opções de Streaming */}
+            <StreamingOptions movieTitle={movie.title} movieYear={movieYear} />
+          </div>
 
           <div className="space-y-6">
             <div>
@@ -98,7 +100,7 @@ const MovieDetails = () => {
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="w-5 h-5" />
-                  <span>{new Date(movie.release_date).getFullYear()}</span>
+                  <span>{movieYear}</span>
                 </div>
                 {movie.runtime && (
                   <div className="flex items-center gap-1">
@@ -119,11 +121,6 @@ const MovieDetails = () => {
                 </span>
               ))}
             </div>
-
-            <Button size="lg" className="w-full md:w-auto" onClick={handleWatch}>
-              <Play className="w-5 h-5 mr-2" />
-              Assistir Agora
-            </Button>
 
             <Card>
               <CardContent className="p-6 space-y-4">
