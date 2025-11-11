@@ -6,7 +6,7 @@ import { ArrowLeft, Star, Clock, Calendar, Play, AlertCircle, RefreshCw, Server 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -15,6 +15,7 @@ const MovieDetails = () => {
   const [showPlayer, setShowPlayer] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   
   const { data: movie, isLoading, error } = useMovieDetails(id || "");
 
@@ -25,18 +26,63 @@ const MovieDetails = () => {
     metaReferrer.content = 'no-referrer';
     document.head.appendChild(metaReferrer);
 
-    // Bloquear window.open
+    // Bloquear window.open globalmente
     const originalOpen = window.open;
-    window.open = function() {
-      console.log('Popup bloqueado!');
+    window.open = function(...args) {
+      console.log('Popup bloqueado!', args);
       return null;
     };
+
+    // Interceptar cliques em links que tentam abrir novas abas
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'A') {
+        const link = target as HTMLAnchorElement;
+        if (link.target === '_blank') {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Link bloqueado:', link.href);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleClick, true);
 
     return () => {
       document.head.removeChild(metaReferrer);
       window.open = originalOpen;
+      document.removeEventListener('click', handleClick, true);
     };
   }, []);
+
+  // Monitorar iframe e bloquear popups dele
+  useEffect(() => {
+    if (iframeRef.current && showPlayer) {
+      const iframe = iframeRef.current;
+      
+      const handleLoad = () => {
+        try {
+          // Tentar bloquear window.open dentro do iframe
+          if (iframe.contentWindow) {
+            const iframeWindow = iframe.contentWindow as any;
+            iframeWindow.open = function() {
+              console.log('Popup do iframe bloqueado!');
+              return null;
+            };
+          }
+        } catch (e) {
+          // CORS pode impedir acesso ao contentWindow
+          console.log('Não foi possível acessar contentWindow do iframe');
+        }
+      };
+
+      iframe.addEventListener('load', handleLoad);
+      
+      return () => {
+        iframe.removeEventListener('load', handleLoad);
+      };
+    }
+  }, [showPlayer, playerKey]);
 
   const handleRefresh = (e?: React.MouseEvent) => {
     if (e) {
@@ -228,13 +274,13 @@ const MovieDetails = () => {
                     <>
                       <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
                         <iframe
+                          ref={iframeRef}
                           key={playerKey}
                           src={currentLink}
                           className="absolute top-0 left-0 w-full h-full"
                           allowFullScreen
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           referrerPolicy="origin"
-                          sandbox="allow-same-origin allow-scripts allow-forms allow-presentation"
                           title={movie.title}
                         />
                       </div>
@@ -297,7 +343,7 @@ const MovieDetails = () => {
                       </div>
                       <Alert>
                         <AlertDescription className="text-xs">
-                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor.
+                          💡 <strong>Dica:</strong> Se o vídeo não carregar, tente outro servidor. Use um bloqueador de popups no navegador para melhor experiência.
                         </AlertDescription>
                       </Alert>
                     </>
