@@ -229,18 +229,15 @@ export const vercelApiService = {
     }
   },
 
-  // Gerar múltiplos links alternativos - PRIORIZANDO OS QUE FUNCIONAM
+  // Gerar múltiplos links alternativos de embed com TMDB ID
   generateEmbedLinks(tmdbId: string): string[] {
     return [
-      // SERVIDORES QUE FUNCIONAM (prioridade)
-      `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`,
-      `https://player.smashy.stream/movie/${tmdbId}`,
-      
-      // Outros servidores (backup)
       `https://vidsrc.xyz/embed/movie/${tmdbId}`,
       `https://vidsrc.to/embed/movie/${tmdbId}`,
       `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`,
       `https://www.2embed.cc/embed/${tmdbId}`,
+      `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`,
+      `https://player.smashy.stream/movie/${tmdbId}`,
       `https://vidsrc.pro/embed/movie/${tmdbId}`,
     ];
   },
