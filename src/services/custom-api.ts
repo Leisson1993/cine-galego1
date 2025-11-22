@@ -43,4 +43,24 @@ export const customApiService = {
 
   // ... (o resto das suas funções como getMovieById, parseMoviesFromResponse, etc., continuam iguais) ...
   // Cole o resto das suas funções aqui para não perdê-las.
+// Converter para formato compatível com o Movie existente
+  convertToLocalMovie(customMovie: CustomMovie): any {
+    return {
+      id: customMovie.id,
+      title: customMovie.titulo,
+      year: customMovie.ano,
+      genre: customMovie.genero,
+      rating: customMovie.nota,
+      duration: customMovie.duracao,
+      image: customMovie.imagem,
+      backdrop: customMovie.imagemFundo,
+      description: customMovie.descricao,
+      director: customMovie.diretor || 'N/A',
+      cast: customMovie.elenco || [],
+      link: customMovie.link,
+      quality: customMovie.qualidade,
+      language: customMovie.idioma,
+      players: customMovie.players,
+    };
+  },
 };
